@@ -65,6 +65,7 @@ namespace RubberJoins.Pages
                         todaySteps.Add(new TodayStep
                         {
                             Index = i,
+                            SessionStepId = step.Id,
                             Exercise = exercise,
                             Rx = rx,
                             Section = step.Section,

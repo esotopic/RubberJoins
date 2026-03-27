@@ -14,6 +14,8 @@
     int mobilityTotal = mobilitySteps.Count;
     int recoveryDone = recoverySteps.Count(s => s.Checked);
     int recoveryTotal = recoverySteps.Count;
+    int warmupDone = warmupSteps.Count(s => s.Checked);
+    int warmupTotal = warmupSteps.Count;
     int suppsDone = Model.ViewModel.Supplements.Count(s => s.Checked);
     int suppsTotal = Model.ViewModel.Supplements.Count;
 
@@ -35,6 +37,19 @@
         <p class="activity-subtitle">@Model.ViewModel.DayName · @Model.ViewModel.SessionType</p>
 
         <div class="progress-bars">
+            @if (warmupTotal > 0)
+            {
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-dot" style="background:#ff9500;"></span>
+                        <span>Warm-up</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="bar-warmup_tool" style="width:@(warmupTotal > 0 ? (warmupDone * 100 / warmupTotal) : 0)%;background:#ff9500;"></div>
+                    </div>
+                    <span class="progress-count" id="count-warmup_tool">@warmupDone/@warmupTotal</span>
+                </div>
+            }
             @if (mobilityTotal > 0)
             {
                 <div class="progress-row">
@@ -43,7 +58,7 @@
                         <span>Mobility</span>
                     </div>
                     <div class="progress-track">
-                        <div class="progress-fill" id="bar-mobility" data-category="mobility" style="width:@(mobilityTotal > 0 ? (mobilityDone * 100 / mobilityTotal) : 0)%;background:#34c759;"></div>
+                        <div class="progress-fill" id="bar-mobility" style="width:@(mobilityTotal > 0 ? (mobilityDone * 100 / mobilityTotal) : 0)%;background:#34c759;"></div>
                     </div>
                     <span class="progress-count" id="count-mobility">@mobilityDone/@mobilityTotal</span>
                 </div>
@@ -56,9 +71,9 @@
                         <span>Recovery</span>
                     </div>
                     <div class="progress-track">
-                        <div class="progress-fill" id="bar-recovery" data-category="recovery_tool" style="width:@(recoveryTotal > 0 ? (recoveryDone * 100 / recoveryTotal) : 0)%;background:#4a6cf7;"></div>
+                        <div class="progress-fill" id="bar-recovery_tool" style="width:@(recoveryTotal > 0 ? (recoveryDone * 100 / recoveryTotal) : 0)%;background:#4a6cf7;"></div>
                     </div>
-                    <span class="progress-count" id="count-recovery">@recoveryDone/@recoveryTotal</span>
+                    <span class="progress-count" id="count-recovery_tool">@recoveryDone/@recoveryTotal</span>
                 </div>
             }
             @if (suppsTotal > 0)
@@ -113,15 +128,15 @@
                 </div>
                 @foreach (var step in group)
                 {
-                    <div class="check-item @(step.Checked ? "done" : "")" data-step-id="@step.Index" data-category="@step.Exercise.Category">
-                        <div class="check-box" data-step-id="@step.Index" data-exercise-id="@step.Exercise.Id"></div>
+                    <div class="check-item @(step.Checked ? "done" : "")" data-step-id="@step.SessionStepId" data-step-index="@step.Index" data-category="@step.Exercise.Category">
+                        <div class="check-box"></div>
                         <div class="check-info">
                             <span class="check-name">@step.Exercise.Name</span>
                             <span class="check-sub">@step.Exercise.Targets</span>
                         </div>
                         <span class="check-reps">@step.Rx</span>
                     </div>
-                    <div class="detail" data-detail-for="@step.Index">
+                    <div class="detail" data-detail-for="@step.SessionStepId">
                         <p>@step.Exercise.Description</p>
                         @if (!string.IsNullOrEmpty(step.Exercise.Cues))
                         {
@@ -177,29 +192,23 @@
 <script>
 // Category totals for progress bars
 const categoryTotals = {
+    warmup_tool: { total: @warmupTotal, done: @warmupDone },
     mobility: { total: @mobilityTotal, done: @mobilityDone },
     recovery_tool: { total: @recoveryTotal, done: @recoveryDone },
     supplements: { total: @suppsTotal, done: @suppsDone }
 };
 
 function updateProgressBars() {
-    // Update mobility bar
-    const mobBar = document.getElementById('bar-mobility');
-    const mobCount = document.getElementById('count-mobility');
-    if (mobBar && mobCount) {
-        const pct = categoryTotals.mobility.total > 0 ? (categoryTotals.mobility.done * 100 / categoryTotals.mobility.total) : 0;
-        mobBar.style.width = pct + '%';
-        mobCount.textContent = categoryTotals.mobility.done + '/' + categoryTotals.mobility.total;
-    }
-
-    // Update recovery bar
-    const recBar = document.getElementById('bar-recovery');
-    const recCount = document.getElementById('count-recovery');
-    if (recBar && recCount) {
-        const pct = categoryTotals.recovery_tool.total > 0 ? (categoryTotals.recovery_tool.done * 100 / categoryTotals.recovery_tool.total) : 0;
-        recBar.style.width = pct + '%';
-        recCount.textContent = categoryTotals.recovery_tool.done + '/' + categoryTotals.recovery_tool.total;
-    }
+    // Update all category bars
+    ['warmup_tool', 'mobility', 'recovery_tool'].forEach(cat => {
+        const bar = document.getElementById('bar-' + cat);
+        const count = document.getElementById('count-' + cat);
+        if (bar && count) {
+            const pct = categoryTotals[cat].total > 0 ? (categoryTotals[cat].done * 100 / categoryTotals[cat].total) : 0;
+            bar.style.width = pct + '%';
+            count.textContent = categoryTotals[cat].done + '/' + categoryTotals[cat].total;
+        }
+    });
 
     // Update supplements bar
     const suppBar = document.getElementById('bar-supplements');
@@ -212,7 +221,6 @@ function updateProgressBars() {
 
     // Update group headers
     document.querySelectorAll('.session-group').forEach(group => {
-        const cat = group.dataset.category;
         const done = group.querySelectorAll('.check-item.done').length;
         const total = group.querySelectorAll('.check-item').length;
         const progEl = group.querySelector('.group-progress');
@@ -220,20 +228,19 @@ function updateProgressBars() {
     });
 }
 
-// Session step checkboxes
-document.querySelectorAll('.check-box[data-step-id]').forEach(box => {
-    box.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const item = box.closest('.check-item');
-        const stepId = box.dataset.stepId;
-        const exerciseId = box.dataset.exerciseId;
+// Session step checkboxes — click on the check-box OR the whole row
+document.querySelectorAll('.check-item[data-step-id]').forEach(item => {
+    item.addEventListener('click', async (e) => {
+        // Don't trigger if they clicked on check-info (that opens detail)
+        if (e.target.closest('.check-info')) return;
+
+        const stepId = item.dataset.stepId;       // SessionStep.Id from DB
+        const stepIndex = item.dataset.stepIndex;  // loop index
         const category = item.dataset.category;
         const wasDone = item.classList.contains('done');
 
         // Optimistic UI update
         item.classList.toggle('done');
-
-        // Update category count
         if (categoryTotals[category]) {
             categoryTotals[category].done += wasDone ? -1 : 1;
         }
@@ -246,8 +253,7 @@ document.querySelectorAll('.check-box[data-step-id]').forEach(box => {
                 body: JSON.stringify({
                     itemType: 'step',
                     itemId: stepId,
-                    exerciseId: exerciseId,
-                    stepIndex: parseInt(stepId)
+                    stepIndex: parseInt(stepIndex)
                 })
             });
             if (!response.ok) {
@@ -257,6 +263,7 @@ document.querySelectorAll('.check-box[data-step-id]').forEach(box => {
                     categoryTotals[category].done += wasDone ? 1 : -1;
                 }
                 updateProgressBars();
+                console.error('API error:', response.status);
             }
         } catch (error) {
             item.classList.toggle('done');
@@ -264,12 +271,12 @@ document.querySelectorAll('.check-box[data-step-id]').forEach(box => {
                 categoryTotals[category].done += wasDone ? 1 : -1;
             }
             updateProgressBars();
-            console.error('Error:', error);
+            console.error('Network error:', error);
         }
     });
 });
 
-// Supplement checkboxes - click on the whole row
+// Supplement checkboxes — click on the whole row
 document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item => {
     item.addEventListener('click', async (e) => {
         const supplementId = item.dataset.supplementId;
@@ -294,12 +301,13 @@ document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item =
                 item.classList.toggle('taken');
                 categoryTotals.supplements.done += wasTaken ? 1 : -1;
                 updateProgressBars();
+                console.error('API error:', response.status);
             }
         } catch (error) {
             item.classList.toggle('taken');
             categoryTotals.supplements.done += wasTaken ? 1 : -1;
             updateProgressBars();
-            console.error('Error:', error);
+            console.error('Network error:', error);
         }
     });
 });

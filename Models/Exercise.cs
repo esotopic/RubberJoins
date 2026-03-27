@@ -95,6 +95,7 @@ public class TodayViewModel
 public class TodayStep
 {
     public int Index { get; set; }
+    public int SessionStepId { get; set; }  // The DB primary key for SessionSteps
     public Exercise Exercise { get; set; } = new();
     public string Rx { get; set; } = "";
     public string? Section { get; set; }
