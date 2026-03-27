@@ -44,51 +44,53 @@
 
     @if (Model.ViewModel.Steps.Any())
     {
-        <section class="session-card">
-            <h2 class="card-title">Today's Session</h2>
-            <div class="steps-list">
-                @foreach (var step in Model.ViewModel.Steps)
+        @{
+            var grouped = Model.ViewModel.Steps
+                .GroupBy(s => s.Exercise.Category)
+                .OrderBy(g => GetSectionOrder(g.Key));
+        }
+
+        @foreach (var group in grouped)
+        {
+            <div class="session-group">
+                <div class="session-group-header">
+                    <span class="dot" style="background-color: @GetCategoryColor(group.Key);"></span>
+                    <span>@GetSectionLabel(group.Key)</span>
+                </div>
+                @foreach (var step in group)
                 {
-                    <div class="step-item" data-step-id="@step.Index">
-                        <input type="checkbox" class="step-checkbox"
-                               data-step-id="@step.Index"
-                               data-exercise-id="@step.Exercise.Id"
-                               @(step.Checked ? "checked" : "")>
-                        <div class="step-content">
-                            <div class="step-header">
-                                <span class="category-dot" style="background-color: @GetCategoryColor(step.Exercise.Category);"></span>
-                                <span class="exercise-name" role="button" tabindex="0">@step.Exercise.Name</span>
-                            </div>
-                            <p class="prescription">@step.Rx</p>
-                            <div class="step-detail" style="display: none;">
-                                <p class="description">@step.Exercise.Description</p>
-                                @if (!string.IsNullOrEmpty(step.Exercise.Cues))
-                                {
-                                    <div class="cues">
-                                        <strong>Cues:</strong>
-                                        <ul>
-                                            @foreach (var cue in step.Exercise.Cues.Split('|'))
-                                            {
-                                                <li>@cue.Trim()</li>
-                                            }
-                                        </ul>
-                                    </div>
-                                }
-                                @if (!string.IsNullOrEmpty(step.Exercise.Warning))
-                                {
-                                    <p class="warning">⚠️ @step.Exercise.Warning</p>
-                                }
-                            </div>
+                    <div class="check-item @(step.Checked ? "done" : "")" data-step-id="@step.Index">
+                        <div class="check-box" data-step-id="@step.Index" data-exercise-id="@step.Exercise.Id"></div>
+                        <div class="check-info">
+                            <span class="check-name">@step.Exercise.Name</span>
+                            <span class="check-sub">@step.Exercise.Targets</span>
                         </div>
+                        <span class="check-reps">@step.Rx</span>
+                    </div>
+                    <div class="detail" data-detail-for="@step.Index">
+                        <p>@step.Exercise.Description</p>
+                        @if (!string.IsNullOrEmpty(step.Exercise.Cues))
+                        {
+                            <ul>
+                                @foreach (var cue in step.Exercise.Cues.Split('|'))
+                                {
+                                    <li>@cue.Trim()</li>
+                                }
+                            </ul>
+                        }
+                        @if (!string.IsNullOrEmpty(step.Exercise.Warning))
+                        {
+                            <p class="detail-warning">@step.Exercise.Warning</p>
+                        }
                     </div>
                 }
             </div>
-        </section>
+        }
     }
     else if (Model.ViewModel.DayKey == "rest")
     {
-        <div class="rest-day-message">
-            <p>Today is a rest day. Take it easy and recover!</p>
+        <div class="card" style="margin-top:16px;text-align:center;">
+            <p style="color:var(--tx2);padding:24px 0;">Today is a rest day. Take it easy and recover!</p>
         </div>
     }
 
@@ -121,17 +123,20 @@
 </div>
 
 <script>
-document.querySelectorAll('.step-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', async (e) => {
-        const stepId = e.target.dataset.stepId;
-        const exerciseId = e.target.dataset.exerciseId;
+// Session step checkboxes
+document.querySelectorAll('.check-box[data-step-id]').forEach(box => {
+    box.addEventListener('click', async (e) => {
+        const item = box.closest('.check-item');
+        const stepId = box.dataset.stepId;
+        const exerciseId = box.dataset.exerciseId;
+        const wasDone = item.classList.contains('done');
+
+        item.classList.toggle('done');
 
         try {
             const response = await fetch('/Api?handler=check', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     itemType: 'step',
                     itemId: stepId,
@@ -139,38 +144,32 @@ document.querySelectorAll('.step-checkbox').forEach(checkbox => {
                     stepIndex: stepId
                 })
             });
-
             if (!response.ok) {
-                e.target.checked = !e.target.checked;
-                alert('Failed to save check');
+                item.classList.toggle('done');
             }
         } catch (error) {
-            e.target.checked = !e.target.checked;
+            item.classList.toggle('done');
             console.error('Error:', error);
         }
     });
 });
 
+// Supplement checkboxes
 document.querySelectorAll('.supplement-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', async (e) => {
         const supplementId = e.target.dataset.supplementId;
-
         try {
             const response = await fetch('/Api?handler=check', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     itemType: 'supplement',
                     itemId: supplementId,
                     stepIndex: 0
                 })
             });
-
             if (!response.ok) {
                 e.target.checked = !e.target.checked;
-                alert('Failed to save check');
             }
         } catch (error) {
             e.target.checked = !e.target.checked;
@@ -179,17 +178,14 @@ document.querySelectorAll('.supplement-checkbox').forEach(checkbox => {
     });
 });
 
-document.querySelectorAll('.exercise-name').forEach(name => {
-    name.addEventListener('click', (e) => {
-        const stepItem = e.target.closest('.step-item');
-        const detail = stepItem.querySelector('.step-detail');
-        detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
-    });
-
-    name.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            name.click();
+// Tap exercise name to expand detail
+document.querySelectorAll('.check-info').forEach(info => {
+    info.addEventListener('click', (e) => {
+        const item = info.closest('.check-item');
+        const stepId = item.dataset.stepId;
+        const detail = document.querySelector(`.detail[data-detail-for="${stepId}"]`);
+        if (detail) {
+            detail.classList.toggle('open');
         }
     });
 });
@@ -239,6 +235,30 @@ document.querySelectorAll('.exercise-name').forEach(name => {
             "warmup_tool" => "#ff6b35",
             "recovery_tool" => "#4a90e2",
             _ => "#7b9aff"
+        };
+    }
+
+    private int GetSectionOrder(string category)
+    {
+        return category switch
+        {
+            "warmup_tool" => 0,
+            "mobility" => 1,
+            "strength" => 2,
+            "recovery_tool" => 3,
+            _ => 4
+        };
+    }
+
+    private string GetSectionLabel(string category)
+    {
+        return category switch
+        {
+            "warmup_tool" => "Warm-up",
+            "mobility" => "Mobility",
+            "strength" => "Strength",
+            "recovery_tool" => "Recovery",
+            _ => "Other"
         };
     }
 
