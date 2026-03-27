@@ -50,7 +50,7 @@ public class DailyCheck
     public string Date { get; set; } = "";       // yyyy-MM-dd
     public string ItemType { get; set; } = "";   // step, supplement
     public string ItemId { get; set; } = "";
-    public int StepIndex { get; set; }
+    public int? StepIndex { get; set; }
     public bool Checked { get; set; }
 }
 
