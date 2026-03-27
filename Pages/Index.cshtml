@@ -149,85 +149,89 @@
         }
     </section>
 
-    <!-- Exercise Groups -->
-    @if (Model.ViewModel.Steps.Any())
-    {
-        var grouped = Model.ViewModel.Steps
-            .GroupBy(s => s.Exercise.Category)
-            .OrderBy(g => GetSectionOrder(g.Key));
-
-        foreach (var group in grouped)
+    <!-- Exercise Groups — always show standard categories -->
+    @{
+        // Build list of categories to display: always include the 3 standard ones,
+        // plus strength if any strength exercises exist
+        var allCategories = new List<string> { "warmup_tool", "mobility", "recovery_tool" };
+        if (Model.ViewModel.Steps.Any(s => s.Exercise.Category == "strength"))
         {
-            <div class="session-group" data-category="@group.Key">
-                <div class="session-group-header">
-                    <span class="dot" style="background-color: @GetCategoryColor(group.Key);"></span>
-                    <span>@GetSectionLabel(group.Key)</span>
-                    <span class="group-progress">@group.Count(s => s.Checked)/@group.Count()</span>
-                    @if (!isFuture)
-                    {
-                        <button class="add-exercise-btn" data-category="@group.Key" title="Add exercise">+</button>
-                    }
-                </div>
-                @foreach (var step in group)
+            allCategories.Insert(2, "strength"); // insert before recovery
+        }
+        var stepsByCategory = Model.ViewModel.Steps
+            .GroupBy(s => s.Exercise.Category)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    @foreach (var cat in allCategories)
+    {
+        var catSteps = stepsByCategory.ContainsKey(cat) ? stepsByCategory[cat] : new List<RubberJoins.Models.TodayStep>();
+        var catDone = catSteps.Count(s => s.Checked);
+        var catTotal = catSteps.Count;
+
+        <div class="session-group" data-category="@cat">
+            <div class="session-group-header">
+                <span class="dot" style="background-color: @GetCategoryColor(cat);"></span>
+                <span>@GetSectionLabel(cat)</span>
+                <span class="group-progress">@catDone/@catTotal</span>
+                @if (!isFuture)
                 {
-                    <div class="check-item @(step.Checked ? "done" : "") @(isFuture ? "read-only" : "")" data-step-id="@step.SessionStepId" data-step-index="@step.Index" data-category="@step.Exercise.Category" data-exercise-id="@step.Exercise.Id">
-                        @if (!isFuture)
-                        {
-                            <div class="check-box"></div>
-                        }
-                        else
-                        {
-                            <div class="check-box-preview"></div>
-                        }
-                        <div class="check-info">
-                            <span class="check-name">@step.Exercise.Name</span>
-                            <span class="check-sub">@step.Exercise.Targets</span>
-                        </div>
-                        <span class="check-reps">@step.Rx</span>
-                    </div>
-                    <div class="detail" data-detail-for="@step.SessionStepId">
-                        <p>@step.Exercise.Description</p>
-                        @if (!string.IsNullOrEmpty(step.Exercise.Cues))
-                        {
-                            <ul>
-                                @foreach (var cue in step.Exercise.Cues.Split('|'))
-                                {
-                                    <li>@cue.Trim()</li>
-                                }
-                            </ul>
-                        }
-                        @if (!string.IsNullOrEmpty(step.Exercise.Warning))
-                        {
-                            <p class="detail-warning">@step.Exercise.Warning</p>
-                        }
-                        <a href="https://www.youtube.com/results?search_query=@(Uri.EscapeDataString(GetYouTubeQuery(step.Exercise)))"
-                           target="_blank" rel="noopener" class="yt-demo-link">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.9 31.9 0 000 12a31.9 31.9 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.9 31.9 0 0024 12a31.9 31.9 0 00-.5-5.8zM9.5 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>
-                            Watch Demo
-                        </a>
-                    </div>
+                    <button class="add-exercise-btn" data-category="@cat" title="Add exercise">+</button>
                 }
             </div>
-        }
-    }
-    else if (Model.ViewModel.DayKey == "rest")
-    {
-        <div class="card" style="margin-top:16px;text-align:center;">
-            <p style="color:var(--tx2);padding:24px 0;">
-                @(isToday ? "Today is a rest day. Take it easy and recover!" :
-                  isFuture ? "This will be a rest day." :
-                  "This was a rest day.")
-            </p>
+            @if (catTotal == 0)
+            {
+                <div class="empty-section-hint">
+                    @if (!isFuture)
+                    {
+                        <span>Tap + to add exercises</span>
+                    }
+                    else
+                    {
+                        <span>No exercises scheduled</span>
+                    }
+                </div>
+            }
+            @foreach (var step in catSteps)
+            {
+                <div class="check-item @(step.Checked ? "done" : "") @(isFuture ? "read-only" : "")" data-step-id="@step.SessionStepId" data-step-index="@step.Index" data-category="@step.Exercise.Category" data-exercise-id="@step.Exercise.Id">
+                    @if (!isFuture)
+                    {
+                        <div class="check-box"></div>
+                    }
+                    else
+                    {
+                        <div class="check-box-preview"></div>
+                    }
+                    <div class="check-info">
+                        <span class="check-name">@step.Exercise.Name</span>
+                        <span class="check-sub">@step.Exercise.Targets</span>
+                    </div>
+                    <span class="check-reps">@step.Rx</span>
+                </div>
+                <div class="detail" data-detail-for="@step.SessionStepId">
+                    <p>@step.Exercise.Description</p>
+                    @if (!string.IsNullOrEmpty(step.Exercise.Cues))
+                    {
+                        <ul>
+                            @foreach (var cue in step.Exercise.Cues.Split('|'))
+                            {
+                                <li>@cue.Trim()</li>
+                            }
+                        </ul>
+                    }
+                    @if (!string.IsNullOrEmpty(step.Exercise.Warning))
+                    {
+                        <p class="detail-warning">@step.Exercise.Warning</p>
+                    }
+                    <a href="https://www.youtube.com/results?search_query=@(Uri.EscapeDataString(GetYouTubeQuery(step.Exercise)))"
+                       target="_blank" rel="noopener" class="yt-demo-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.9 31.9 0 000 12a31.9 31.9 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.9 31.9 0 0024 12a31.9 31.9 0 00-.5-5.8zM9.5 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>
+                        Watch Demo
+                    </a>
+                </div>
+            }
         </div>
-
-        @if (!isFuture)
-        {
-            <div class="add-section-bar">
-                <button class="add-exercise-btn-large" data-category="warmup_tool">+ Warm-up</button>
-                <button class="add-exercise-btn-large" data-category="mobility">+ Mobility</button>
-                <button class="add-exercise-btn-large" data-category="recovery_tool">+ Recovery</button>
-            </div>
-        }
     }
 
     @if (Model.ViewModel.Supplements.Any())

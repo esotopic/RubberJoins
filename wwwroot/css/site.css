@@ -1785,6 +1785,13 @@ input[type='date']::-webkit-calendar-picker-indicator {
   color: var(--acc);
 }
 
+.empty-section-hint {
+  padding: 12px 16px 8px 28px;
+  color: var(--tx3);
+  font-size: 13px;
+  font-style: italic;
+}
+
 /* Picker overlay (bottom sheet) */
 .picker-overlay {
   position: fixed;
