@@ -151,6 +151,11 @@
                         {
                             <p class="detail-warning">@step.Exercise.Warning</p>
                         }
+                        <a href="https://www.youtube.com/results?search_query=@(Uri.EscapeDataString(GetYouTubeQuery(step.Exercise)))"
+                           target="_blank" rel="noopener" class="yt-demo-link">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.9 31.9 0 000 12a31.9 31.9 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.9 31.9 0 0024 12a31.9 31.9 0 00-.5-5.8zM9.5 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>
+                            Watch Demo
+                        </a>
                     </div>
                 }
             </div>
@@ -387,6 +392,22 @@ document.querySelectorAll('.check-info').forEach(info => {
             "strength" => "Strength",
             "recovery_tool" => "Recovery",
             _ => "Other"
+        };
+    }
+
+    private string GetYouTubeQuery(Exercise ex)
+    {
+        // Custom search terms for exercises that need specific queries
+        return ex.Id switch
+        {
+            "cars-routine" => "Controlled Articular Rotations mobility routine",
+            "open-book" => "open book thoracic spine rotation stretch",
+            "hip-flexor-pails-rails" => "hip flexor PAILs RAILs FRC stretch",
+            "90-90-pails-rails" => "90 90 hip PAILs RAILs FRC stretch",
+            "ankle-pails-rails" => "ankle dorsiflexion PAILs RAILs FRC",
+            "compex-warmup" => "Compex EMS muscle warmup program",
+            "compex-recovery" => "Compex EMS recovery program legs",
+            _ => ex.Name + " exercise demo"
         };
     }
 
