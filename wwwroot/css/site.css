@@ -1,24 +1,24 @@
-/* RubberJoins - Dark Theme Mobile-First Joint Mobility Tracking App */
+/* RubberJoins - Light Theme Mobile-First Joint Mobility Tracking App */
 
 /* ============================================================================
    COLOR VARIABLES
    ============================================================================ */
 
 :root {
-  --bg: #111318;
-  --s1: #191c24;
-  --s2: #21252f;
-  --s3: #2a2f3b;
-  --brd: #262b38;
-  --tx: #e4e6ec;
-  --tx2: #a0a5b8;
-  --tx3: #5e6478;
-  --acc: #7b9aff;
-  --grn: #45c4a0;
-  --org: #e8a84c;
-  --red: #e86464;
-  --pur: #a78bfa;
-  --yel: #ecd06c;
+  --bg: #f5f5f7;
+  --s1: #ffffff;
+  --s2: #f0f0f3;
+  --s3: #e5e5ea;
+  --brd: #d1d1d6;
+  --tx: #1c1c1e;
+  --tx2: #636366;
+  --tx3: #8e8e93;
+  --acc: #4a6cf7;
+  --grn: #34c759;
+  --org: #ff9500;
+  --red: #ff3b30;
+  --pur: #af52de;
+  --yel: #ffcc00;
 }
 
 /* ============================================================================
@@ -213,8 +213,8 @@ header {
 .pill {
   display: inline-block;
   padding: 6px 14px;
-  background-color: rgba(123, 154, 255, 0.15);
-  border: 1px solid rgba(123, 154, 255, 0.25);
+  background-color: rgba(74, 108, 247, 0.1);
+  border: 1px solid rgba(74, 108, 247, 0.2);
   border-radius: 20px;
   font-size: 13px;
   color: var(--acc);
@@ -444,7 +444,7 @@ header {
 
 .check-item.done .check-box::after {
   content: '✓';
-  color: var(--bg);
+  color: #fff;
   font-weight: 700;
   font-size: 14px;
 }
@@ -909,7 +909,6 @@ input[type='date']:focus {
 }
 
 input[type='date']::-webkit-calendar-picker-indicator {
-  filter: invert(0.8);
   cursor: pointer;
 }
 
@@ -973,7 +972,7 @@ input[type='date']::-webkit-calendar-picker-indicator {
 
 .supplement-item.taken .supplement-check::after {
   content: '✓';
-  color: var(--bg);
+  color: #fff;
   font-weight: 700;
   font-size: 12px;
 }
