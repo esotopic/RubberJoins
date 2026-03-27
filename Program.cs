@@ -42,20 +42,17 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// DB initialization in background (non-blocking, per Azure playbook)
-_ = Task.Run(async () =>
+// DB initialization - run synchronously at startup to ensure tables exist
+try
 {
-    try
-    {
-        var repository = app.Services.GetRequiredService<RubberJoins.Data.RubberJoinsRepository>();
-        await repository.InitializeAsync();
-        app.Logger.LogInformation("Database initialized successfully.");
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogError(ex, "Failed to initialize database. App continues without DB.");
-    }
-});
+    var repository = app.Services.GetRequiredService<RubberJoins.Data.RubberJoinsRepository>();
+    repository.InitializeAsync().GetAwaiter().GetResult();
+    app.Logger.LogInformation("Database initialized successfully.");
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "Failed to initialize database.");
+}
 
 app.MapRazorPages();
 
