@@ -61,14 +61,14 @@ namespace RubberJoins.Pages
                 var userSupplements = await _repository.GetUserSupplementsForDateAsync(userId, todayDate);
                 var suppChecks = todayChecks
                     .Where(c => c.ItemType == "supplement")
-                    .ToDictionary(c => c.ItemId, c => c.Checked);
+                    .ToDictionary(c => $"{c.ItemId}:{c.StepIndex}", c => c.Checked);
 
                 int todaySuppsDone = 0;
                 int todaySuppsTotal = userSupplements.Count;
                 foreach (var supp in userSupplements)
                 {
                     int tgIndex = supp.TimeGroup switch { "am" => 0, "mid" => 1, "pm" => 2, _ => 0 };
-                    string checkKey = $"supplement:{supp.Id}:{tgIndex}";
+                    string checkKey = $"{supp.Id}:{tgIndex}";
                     if (suppChecks.TryGetValue(checkKey, out var isChecked) && isChecked)
                         todaySuppsDone++;
                 }
