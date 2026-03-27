@@ -40,14 +40,19 @@ namespace RubberJoins.Pages
                 // Total sessions
                 var sessionsTotal = allSessionLogs.Count;
 
-                // Today's steps
-                var todayLog = await _repository.GetSessionLogForDateAsync(userId, todayDate);
-                int todayStepsDone = todayLog?.StepsDone ?? 0;
-                int todayStepsTotal = todayLog?.StepsTotal ?? 0;
+                // Today's steps — use live daily checks
+                var todayChecks = await _repository.GetDailyChecksAsync(userId, todayDate);
+                var dayType = GetDayType(DateTime.UtcNow.DayOfWeek);
+                var todaySessionSteps = await _repository.GetSessionStepsAsync(dayType);
+                var settings2 = settings; // reuse
+                var disabledTools = (settings2?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+                var phaseForFilter = phaseInfo.phase;
+                var filteredTodaySteps = todaySessionSteps.Where(s => (s.PhaseOnly == null || s.PhaseOnly == phaseForFilter) && !disabledTools.Contains(s.ExerciseId)).ToList();
+                int todayStepsDone = todayChecks.Count(c => c.ItemType == "step" && c.Checked);
+                int todayStepsTotal = filteredTodaySteps.Count;
 
                 // Today's supplements
                 var allSupplements = await _repository.GetSupplementsAsync();
-                var todayChecks = await _repository.GetDailyChecksAsync(userId, todayDate);
                 var suppCheckMap = todayChecks
                     .Where(c => c.ItemType == "supplement")
                     .ToDictionary(c => c.ItemId, c => c.Checked);
@@ -57,9 +62,6 @@ namespace RubberJoins.Pages
 
                 // Get milestones (per-user)
                 var milestones = await _repository.GetUserMilestonesAsync(userId);
-
-                // Check if today is logged
-                bool todayLogged = todayLog != null && todayLog.StepsTotal > 0;
 
                 ViewModel = new ProgressViewModel
                 {
@@ -72,13 +74,28 @@ namespace RubberJoins.Pages
                     TodaySuppsDone = todaySuppsDone,
                     TodaySuppsTotal = todaySuppsTotal,
                     Milestones = milestones,
-                    TodayLogged = todayLogged
+                    TodayLogged = true
                 };
             }
             catch (Exception ex)
             {
                 ViewModel.ErrorMessage = "Unable to connect to the database. Progress data may be unavailable.";
             }
+        }
+
+        private string GetDayType(DayOfWeek dayOfWeek)
+        {
+            return dayOfWeek switch
+            {
+                DayOfWeek.Monday => "gym",
+                DayOfWeek.Tuesday => "home",
+                DayOfWeek.Wednesday => "gym",
+                DayOfWeek.Thursday => "home",
+                DayOfWeek.Friday => "gym",
+                DayOfWeek.Saturday => "recovery",
+                DayOfWeek.Sunday => "rest",
+                _ => "rest"
+            };
         }
 
         private (int week, int phase) CalculatePhaseAndWeek(string? startDateStr)

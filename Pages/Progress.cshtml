@@ -65,18 +65,9 @@
         </section>
     }
 
-    @if (!Model.ViewModel.TodayLogged)
-    {
-        <button id="logSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px; margin-bottom: 20px;">
-            Log Today as Complete
-        </button>
-    }
-    else
-    {
-        <div class="logged-indicator">
-            <p>✓ Today's session has been logged</p>
-        </div>
-    }
+    <div style="text-align:center;padding:16px;color:var(--tx3);font-size:12px;">
+        Sessions are saved automatically
+    </div>
 
     <div style="height: 100px;"></div>
 </div>
@@ -108,36 +99,12 @@ document.querySelectorAll('.milestone-checkbox').forEach(checkbox => {
     });
 });
 
-const logSessionBtn = document.getElementById('logSessionBtn');
-if (logSessionBtn) {
-    logSessionBtn.addEventListener('click', async () => {
-        logSessionBtn.disabled = true;
-        logSessionBtn.textContent = 'Logging...';
-
-        try {
-            const response = await fetch('/Api?handler=logsession', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({})
-            });
-
-            if (response.ok) {
-                location.reload();
-            } else {
-                alert('Failed to log session');
-                logSessionBtn.disabled = false;
-                logSessionBtn.textContent = 'Log Today as Complete';
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to log session');
-            logSessionBtn.disabled = false;
-            logSessionBtn.textContent = 'Log Today as Complete';
-        }
-    });
-}
+// Auto-log session on page load (fire and forget)
+fetch('/Api?handler=logsession', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+}).catch(() => {});
 </script>
 
 @functions {
