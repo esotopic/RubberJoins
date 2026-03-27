@@ -611,6 +611,15 @@ namespace RubberJoins.Data
         /// </summary>
         public async Task ToggleCheckAsync(string userId, string date, string itemType, string itemId, int stepIndex)
         {
+            await SetCheckAsync(userId, date, itemType, itemId, stepIndex, true);
+        }
+
+        /// <summary>
+        /// Explicitly sets a check to a specific state (checked or unchecked).
+        /// Uses MERGE to handle both insert and update idempotently.
+        /// </summary>
+        public async Task SetCheckAsync(string userId, string date, string itemType, string itemId, int stepIndex, bool checkedState)
+        {
             using (var connection = new SqlConnection(_connectionString))
             {
                 await connection.OpenAsync();
@@ -618,23 +627,21 @@ namespace RubberJoins.Data
                 using (var command = connection.CreateCommand())
                 {
                     command.CommandText = @"
-                        IF EXISTS (SELECT 1 FROM DailyChecks WHERE UserId = @userId AND Date = @date AND ItemType = @itemType AND ItemId = @itemId AND StepIndex = @stepIndex)
-                        BEGIN
-                            UPDATE DailyChecks
-                            SET Checked = CASE WHEN Checked = 1 THEN 0 ELSE 1 END
-                            WHERE UserId = @userId AND Date = @date AND ItemType = @itemType AND ItemId = @itemId AND StepIndex = @stepIndex
-                        END
-                        ELSE
-                        BEGIN
-                            INSERT INTO DailyChecks (UserId, Date, ItemType, ItemId, StepIndex, Checked)
-                            VALUES (@userId, @date, @itemType, @itemId, @stepIndex, 1)
-                        END";
+                        MERGE INTO DailyChecks AS target
+                        USING (SELECT @userId AS UserId, @date AS Date, @itemType AS ItemType, @itemId AS ItemId, @stepIndex AS StepIndex) AS source
+                        ON target.UserId = source.UserId AND target.Date = source.Date AND target.ItemType = source.ItemType AND target.ItemId = source.ItemId AND target.StepIndex = source.StepIndex
+                        WHEN MATCHED THEN
+                            UPDATE SET Checked = @checked
+                        WHEN NOT MATCHED THEN
+                            INSERT (UserId, Date, ItemType, ItemId, StepIndex, Checked)
+                            VALUES (@userId, @date, @itemType, @itemId, @stepIndex, @checked);";
 
                     command.Parameters.AddWithValue("@userId", userId);
                     command.Parameters.AddWithValue("@date", date);
                     command.Parameters.AddWithValue("@itemType", itemType);
                     command.Parameters.AddWithValue("@itemId", itemId);
                     command.Parameters.AddWithValue("@stepIndex", stepIndex);
+                    command.Parameters.AddWithValue("@checked", checkedState);
 
                     await command.ExecuteNonQueryAsync();
                 }

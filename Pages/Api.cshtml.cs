@@ -33,16 +33,46 @@ namespace RubberJoins.Pages
                         string itemType = root.GetProperty("itemType").GetString() ?? "";
                         string itemId = root.GetProperty("itemId").GetString() ?? "";
                         int stepIndex = root.TryGetProperty("stepIndex", out var stepIndexProp) ? stepIndexProp.GetInt32() : 0;
+                        bool checkedState = root.TryGetProperty("checked", out var checkedProp) && checkedProp.GetBoolean();
 
-                        await _repository.ToggleCheckAsync(userId, todayDate, itemType, itemId, stepIndex);
+                        await _repository.SetCheckAsync(userId, todayDate, itemType, itemId, stepIndex, checkedState);
 
-                        return new JsonResult(new { success = true });
+                        return new JsonResult(new { success = true, userId, todayDate, itemType, itemId, stepIndex, checkedState });
                     }
                 }
             }
             catch (Exception ex)
             {
                 return new JsonResult(new { success = false, error = ex.Message }) { StatusCode = 500 };
+            }
+        }
+
+        // Debug endpoint: GET /Api?handler=debug — shows today's checks
+        public async Task<IActionResult> OnGetDebugAsync()
+        {
+            string userId = User.Identity?.Name ?? "default";
+            string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            try
+            {
+                var checks = await _repository.GetDailyChecksAsync(userId, todayDate);
+                return new JsonResult(new
+                {
+                    userId,
+                    todayDate,
+                    utcNow = DateTime.UtcNow.ToString("o"),
+                    checksCount = checks.Count,
+                    checks = checks.Select(c => new
+                    {
+                        c.ItemType,
+                        c.ItemId,
+                        c.StepIndex,
+                        c.Checked
+                    })
+                });
+            }
+            catch (Exception ex)
+            {
+                return new JsonResult(new { error = ex.Message }) { StatusCode = 500 };
             }
         }
 

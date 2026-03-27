@@ -81,17 +81,9 @@
             link.addEventListener('click', function(e) {
                 // If we're on the Today page, auto-log session before navigating
                 if (window.location.pathname === '/') {
-                    // Fire and forget — don't block navigation
                     navigator.sendBeacon('/Api?handler=logsession', new Blob([JSON.stringify({})], {type: 'application/json'}));
                 }
             });
-        });
-
-        // Also auto-log on page unload if on Today page
-        window.addEventListener('beforeunload', function() {
-            if (window.location.pathname === '/') {
-                navigator.sendBeacon('/Api?handler=logsession', new Blob([JSON.stringify({})], {type: 'application/json'}));
-            }
         });
     </script>
 </body>

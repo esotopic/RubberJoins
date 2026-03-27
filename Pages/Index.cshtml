@@ -243,6 +243,7 @@ document.querySelectorAll('.check-item[data-step-id]').forEach(item => {
         const stepIndex = item.dataset.stepIndex;  // loop index
         const category = item.dataset.category;
         const wasDone = item.classList.contains('done');
+        const newState = !wasDone; // Explicit: we want to SET this state
 
         // Optimistic UI update
         item.classList.toggle('done');
@@ -258,7 +259,8 @@ document.querySelectorAll('.check-item[data-step-id]').forEach(item => {
                 body: JSON.stringify({
                     itemType: 'step',
                     itemId: stepId,
-                    stepIndex: parseInt(stepIndex)
+                    stepIndex: parseInt(stepIndex),
+                    checked: newState
                 })
             });
             if (!response.ok) {
@@ -268,7 +270,11 @@ document.querySelectorAll('.check-item[data-step-id]').forEach(item => {
                     categoryTotals[category].done += wasDone ? 1 : -1;
                 }
                 updateProgressBars();
-                console.error('API error:', response.status);
+                const text = await response.text();
+                console.error('API error:', response.status, text);
+            } else {
+                const data = await response.json();
+                console.log('Check saved:', data);
             }
         } catch (error) {
             item.classList.toggle('done');
@@ -286,6 +292,7 @@ document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item =
     item.addEventListener('click', async (e) => {
         const supplementId = item.dataset.supplementId;
         const wasTaken = item.classList.contains('taken');
+        const newState = !wasTaken;
 
         // Optimistic UI
         item.classList.toggle('taken');
@@ -299,7 +306,8 @@ document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item =
                 body: JSON.stringify({
                     itemType: 'supplement',
                     itemId: supplementId,
-                    stepIndex: 0
+                    stepIndex: 0,
+                    checked: newState
                 })
             });
             if (!response.ok) {
