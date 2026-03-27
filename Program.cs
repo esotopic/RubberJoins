@@ -10,10 +10,14 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.ConfigureFilter(new Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute());
 });
 
-// Register RubberJoins Repository with connection string
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+// Register RubberJoins Repository with connection string (120s timeout for Azure SQL Serverless cold start)
+var rawConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "SET_IN_AZURE_APP_SETTINGS";
-builder.Services.AddSingleton(new RubberJoins.Data.RubberJoinsRepository(connectionString));
+var connBuilder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(rawConnectionString)
+{
+    ConnectTimeout = 120
+};
+builder.Services.AddSingleton(new RubberJoins.Data.RubberJoinsRepository(connBuilder.ConnectionString));
 
 // Cookie Authentication
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

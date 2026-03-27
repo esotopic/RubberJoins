@@ -85,7 +85,7 @@ namespace RubberJoins.Pages
             }
             catch (Exception ex)
             {
-                ViewModel.ErrorMessage = $"DB Error: {ex.GetType().Name}: {ex.Message}";
+                ViewModel.ErrorMessage = "Unable to load progress data. Please try again in a moment.";
             }
         }
     }
