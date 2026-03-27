@@ -19,10 +19,14 @@
     int suppsDone = Model.ViewModel.Supplements.Count(s => s.Checked);
     int suppsTotal = Model.ViewModel.Supplements.Count;
 
-    // Weekly calendar data
-    var today = DateTime.UtcNow;
-    var monday = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
-    if (today.DayOfWeek == DayOfWeek.Sunday) monday = monday.AddDays(-7);
+    // Weekly calendar — anchored to the week containing the selected date
+    var selectedDate = DateTime.TryParse(Model.ViewModel.SelectedDate, out var sd) ? sd : DateTime.UtcNow;
+    var actualToday = DateTime.UtcNow;
+    var monday = selectedDate.AddDays(-(int)selectedDate.DayOfWeek + (int)DayOfWeek.Monday);
+    if (selectedDate.DayOfWeek == DayOfWeek.Sunday) monday = monday.AddDays(-7);
+
+    bool isFuture = Model.ViewModel.IsFuture;
+    bool isToday = Model.ViewModel.IsToday;
 }
 
 <div class="page-content">
@@ -39,10 +43,36 @@
         <div class="error-banner">@Model.ViewModel.ErrorMessage</div>
     }
 
-    <!-- Today's Activity Summary -->
+    <!-- Day Navigation Header -->
+    <section class="day-nav">
+        <a href="/?date=@Model.ViewModel.PrevDate" class="day-nav-arrow">&lsaquo;</a>
+        <div class="day-nav-center">
+            <div class="day-nav-label">
+                @if (isToday)
+                {
+                    <span>Today</span>
+                }
+                else
+                {
+                    <span>@Model.ViewModel.SelectedDateLabel</span>
+                }
+            </div>
+            @if (!isToday)
+            {
+                <a href="/" class="day-nav-today-link">Back to Today</a>
+            }
+        </div>
+        <a href="/?date=@Model.ViewModel.NextDate" class="day-nav-arrow">&rsaquo;</a>
+    </section>
+
+    <!-- Activity Summary -->
     <section class="activity-summary">
-        <h2 class="activity-title">Today's Activity</h2>
+        <h2 class="activity-title">@(isToday ? "Today's Activity" : Model.ViewModel.SelectedDateLabel)</h2>
         <p class="activity-subtitle">@Model.ViewModel.DayName · @Model.ViewModel.SessionType</p>
+        @if (isFuture)
+        {
+            <div style="background:var(--acc);color:#fff;display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;margin-top:4px;">PREVIEW</div>
+        }
 
         <div class="progress-bars">
             @if (warmupTotal > 0)
@@ -100,22 +130,22 @@
         </div>
     </section>
 
-    <!-- Weekly Calendar -->
+    <!-- Weekly Calendar — clickable days -->
     <section class="week-calendar">
         @for (int i = 0; i < 7; i++)
         {
             var day = monday.AddDays(i);
-            var isToday = day.Date == today.Date;
-            var isPast = day.Date < today.Date;
+            var isSelected = day.Date == selectedDate.Date;
+            var isActualToday = day.Date == actualToday.Date;
+            var isPast = day.Date < actualToday.Date;
             var dayLabel = day.ToString("ddd").Substring(0, 3).ToUpper();
             var dayNum = day.Day;
-            var dayType = GetDayTypeForDate(day.DayOfWeek);
-            var dotColor = GetDayDotColor(dayType);
-            <div class="week-day @(isToday ? "today" : "") @(isPast ? "past" : "")">
+            var dateParam = day.ToString("yyyy-MM-dd");
+            var dayHref = day.Date == actualToday.Date ? "/" : $"/?date={dateParam}";
+            <a href="@dayHref" class="week-day @(isSelected ? "selected" : "") @(isActualToday ? "today" : "") @(isPast ? "past" : "")" style="text-decoration:none;color:inherit;">
                 <span class="week-day-label">@dayLabel</span>
                 <span class="week-day-num">@dayNum</span>
-                <span class="week-day-dot" style="background:@dotColor;"></span>
-            </div>
+            </a>
         }
     </section>
 
@@ -136,8 +166,15 @@
                 </div>
                 @foreach (var step in group)
                 {
-                    <div class="check-item @(step.Checked ? "done" : "")" data-step-id="@step.SessionStepId" data-step-index="@step.Index" data-category="@step.Exercise.Category">
-                        <div class="check-box"></div>
+                    <div class="check-item @(step.Checked ? "done" : "") @(isFuture ? "read-only" : "")" data-step-id="@step.SessionStepId" data-step-index="@step.Index" data-category="@step.Exercise.Category">
+                        @if (!isFuture)
+                        {
+                            <div class="check-box"></div>
+                        }
+                        else
+                        {
+                            <div class="check-box-preview"></div>
+                        }
                         <div class="check-info">
                             <span class="check-name">@step.Exercise.Name</span>
                             <span class="check-sub">@step.Exercise.Targets</span>
@@ -172,7 +209,11 @@
     else if (Model.ViewModel.DayKey == "rest")
     {
         <div class="card" style="margin-top:16px;text-align:center;">
-            <p style="color:var(--tx2);padding:24px 0;">Today is a rest day. Take it easy and recover!</p>
+            <p style="color:var(--tx2);padding:24px 0;">
+                @(isToday ? "Today is a rest day. Take it easy and recover!" :
+                  isFuture ? "This will be a rest day." :
+                  "This was a rest day.")
+            </p>
         </div>
     }
 
@@ -187,8 +228,15 @@
                         <h3 class="group-title">@GetTimeGroupLabel(group.Key)</h3>
                         @foreach (var item in group)
                         {
-                            <div class="supplement-item @(item.Checked ? "taken" : "")" data-supplement-id="@item.Supplement.Id">
-                                <div class="supplement-check"></div>
+                            <div class="supplement-item @(item.Checked ? "taken" : "") @(isFuture ? "read-only" : "")" data-supplement-id="@item.Supplement.Id">
+                                @if (!isFuture)
+                                {
+                                    <div class="supplement-check"></div>
+                                }
+                                else
+                                {
+                                    <div class="supplement-check-preview"></div>
+                                }
                                 <span class="supplement-name">@item.Supplement.Name</span>
                                 <span class="supplement-dose">@item.Supplement.Dose</span>
                             </div>
@@ -203,6 +251,10 @@
 </div>
 
 <script>
+// Page state
+const PAGE_DATE = '@Model.ViewModel.SelectedDate';
+const IS_FUTURE = @(isFuture ? "true" : "false");
+
 // Category totals for progress bars
 const categoryTotals = {
     warmup_tool: { total: @warmupTotal, done: @warmupDone },
@@ -212,7 +264,6 @@ const categoryTotals = {
 };
 
 function updateProgressBars() {
-    // Update all category bars
     ['warmup_tool', 'mobility', 'recovery_tool'].forEach(cat => {
         const bar = document.getElementById('bar-' + cat);
         const count = document.getElementById('count-' + cat);
@@ -223,7 +274,6 @@ function updateProgressBars() {
         }
     });
 
-    // Update supplements bar
     const suppBar = document.getElementById('bar-supplements');
     const suppCount = document.getElementById('count-supplements');
     if (suppBar && suppCount) {
@@ -232,7 +282,6 @@ function updateProgressBars() {
         suppCount.textContent = categoryTotals.supplements.done + '/' + categoryTotals.supplements.total;
     }
 
-    // Update group headers
     document.querySelectorAll('.session-group').forEach(group => {
         const done = group.querySelectorAll('.check-item.done').length;
         const total = group.querySelectorAll('.check-item').length;
@@ -241,99 +290,96 @@ function updateProgressBars() {
     });
 }
 
-// Session step checkboxes — click on the check-box OR the whole row
-document.querySelectorAll('.check-item[data-step-id]').forEach(item => {
-    item.addEventListener('click', async (e) => {
-        // Don't trigger if they clicked on check-info (that opens detail)
-        if (e.target.closest('.check-info')) return;
+// Session step checkboxes — only if not future
+if (!IS_FUTURE) {
+    document.querySelectorAll('.check-item[data-step-id]').forEach(item => {
+        item.addEventListener('click', async (e) => {
+            if (e.target.closest('.check-info')) return;
 
-        const stepId = item.dataset.stepId;       // SessionStep.Id from DB
-        const stepIndex = item.dataset.stepIndex;  // loop index
-        const category = item.dataset.category;
-        const wasDone = item.classList.contains('done');
-        const newState = !wasDone; // Explicit: we want to SET this state
+            const stepId = item.dataset.stepId;
+            const stepIndex = item.dataset.stepIndex;
+            const category = item.dataset.category;
+            const wasDone = item.classList.contains('done');
+            const newState = !wasDone;
 
-        // Optimistic UI update
-        item.classList.toggle('done');
-        if (categoryTotals[category]) {
-            categoryTotals[category].done += wasDone ? -1 : 1;
-        }
-        updateProgressBars();
+            // Optimistic UI update
+            item.classList.toggle('done');
+            if (categoryTotals[category]) {
+                categoryTotals[category].done += wasDone ? -1 : 1;
+            }
+            updateProgressBars();
 
-        try {
-            const response = await fetch('/api/check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    itemType: 'step',
-                    itemId: stepId,
-                    stepIndex: parseInt(stepIndex),
-                    checked: newState
-                })
-            });
-            if (!response.ok) {
-                // Revert on failure
+            try {
+                const response = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        itemType: 'step',
+                        itemId: stepId,
+                        stepIndex: parseInt(stepIndex),
+                        checked: newState,
+                        date: PAGE_DATE
+                    })
+                });
+                if (!response.ok) {
+                    item.classList.toggle('done');
+                    if (categoryTotals[category]) {
+                        categoryTotals[category].done += wasDone ? 1 : -1;
+                    }
+                    updateProgressBars();
+                    console.error('API error:', response.status);
+                }
+            } catch (error) {
                 item.classList.toggle('done');
                 if (categoryTotals[category]) {
                     categoryTotals[category].done += wasDone ? 1 : -1;
                 }
                 updateProgressBars();
-                const text = await response.text();
-                console.error('API error:', response.status, text);
-            } else {
-                const data = await response.json();
-                console.log('Check saved:', data);
+                console.error('Network error:', error);
             }
-        } catch (error) {
-            item.classList.toggle('done');
-            if (categoryTotals[category]) {
-                categoryTotals[category].done += wasDone ? 1 : -1;
-            }
-            updateProgressBars();
-            console.error('Network error:', error);
-        }
+        });
     });
-});
 
-// Supplement checkboxes — click on the whole row
-document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item => {
-    item.addEventListener('click', async (e) => {
-        const supplementId = item.dataset.supplementId;
-        const wasTaken = item.classList.contains('taken');
-        const newState = !wasTaken;
+    // Supplement checkboxes
+    document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item => {
+        item.addEventListener('click', async (e) => {
+            const supplementId = item.dataset.supplementId;
+            const wasTaken = item.classList.contains('taken');
+            const newState = !wasTaken;
 
-        // Optimistic UI
-        item.classList.toggle('taken');
-        categoryTotals.supplements.done += wasTaken ? -1 : 1;
-        updateProgressBars();
+            item.classList.toggle('taken');
+            categoryTotals.supplements.done += wasTaken ? -1 : 1;
+            updateProgressBars();
 
-        try {
-            const response = await fetch('/api/check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    itemType: 'supplement',
-                    itemId: supplementId,
-                    stepIndex: 0,
-                    checked: newState
-                })
-            });
-            if (!response.ok) {
+            try {
+                const response = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        itemType: 'supplement',
+                        itemId: supplementId,
+                        stepIndex: 0,
+                        checked: newState,
+                        date: PAGE_DATE
+                    })
+                });
+                if (!response.ok) {
+                    item.classList.toggle('taken');
+                    categoryTotals.supplements.done += wasTaken ? 1 : -1;
+                    updateProgressBars();
+                    console.error('API error:', response.status);
+                }
+            } catch (error) {
                 item.classList.toggle('taken');
                 categoryTotals.supplements.done += wasTaken ? 1 : -1;
                 updateProgressBars();
-                console.error('API error:', response.status);
+                console.error('Network error:', error);
             }
-        } catch (error) {
-            item.classList.toggle('taken');
-            categoryTotals.supplements.done += wasTaken ? 1 : -1;
-            updateProgressBars();
-            console.error('Network error:', error);
-        }
+        });
     });
-});
+}
 
-// Tap exercise name to expand detail
+// Tap exercise name to expand detail (works for all dates)
 document.querySelectorAll('.check-info').forEach(info => {
     info.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -345,36 +391,27 @@ document.querySelectorAll('.check-info').forEach(info => {
         }
     });
 });
+
+// Swipe gesture support for day navigation
+let touchStartX = 0;
+let touchEndX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+document.addEventListener('touchend', e => {
+    touchEndX = e.changedTouches[0].screenX;
+    const diff = touchStartX - touchEndX;
+    if (Math.abs(diff) > 80) {
+        if (diff > 0) {
+            // Swipe left → next day
+            window.location.href = '/?date=@Model.ViewModel.NextDate';
+        } else {
+            // Swipe right → prev day
+            window.location.href = '/?date=@Model.ViewModel.PrevDate';
+        }
+    }
+}, { passive: true });
 </script>
 
 @functions {
-    private string GetDayTypeForDate(DayOfWeek dayOfWeek)
-    {
-        return dayOfWeek switch
-        {
-            DayOfWeek.Monday => "gym",
-            DayOfWeek.Tuesday => "home",
-            DayOfWeek.Wednesday => "gym",
-            DayOfWeek.Thursday => "home",
-            DayOfWeek.Friday => "gym",
-            DayOfWeek.Saturday => "recovery",
-            DayOfWeek.Sunday => "rest",
-            _ => "rest"
-        };
-    }
-
-    private string GetDayDotColor(string dayType)
-    {
-        return dayType switch
-        {
-            "gym" => "#34c759",
-            "home" => "#4a6cf7",
-            "recovery" => "#af52de",
-            "rest" => "#d1d1d6",
-            _ => "#d1d1d6"
-        };
-    }
-
     private string GetCategoryColor(string category)
     {
         return category switch
@@ -413,7 +450,6 @@ document.querySelectorAll('.check-info').forEach(info => {
 
     private string GetYouTubeQuery(Exercise ex)
     {
-        // Custom search terms for exercises that need specific queries
         return ex.Id switch
         {
             "cars-routine" => "Controlled Articular Rotations mobility routine",

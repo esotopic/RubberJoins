@@ -90,6 +90,15 @@ public class TodayViewModel
     public List<TodayStep> Steps { get; set; } = new();
     public List<SupplementCheck> Supplements { get; set; } = new();
     public string? ErrorMessage { get; set; }
+
+    // Day navigation
+    public string SelectedDate { get; set; } = "";       // yyyy-MM-dd being viewed
+    public string TodayDate { get; set; } = "";           // actual today yyyy-MM-dd
+    public string SelectedDateLabel { get; set; } = "";   // "Friday, Mar 27"
+    public string PrevDate { get; set; } = "";            // yyyy-MM-dd for < arrow
+    public string NextDate { get; set; } = "";            // yyyy-MM-dd for > arrow
+    public bool IsFuture { get; set; }                    // true = read-only, no checkboxes
+    public bool IsToday { get; set; } = true;
 }
 
 public class TodayStep

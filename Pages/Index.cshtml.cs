@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using RubberJoins.Data;
 using RubberJoins.Models;
@@ -12,6 +13,9 @@ namespace RubberJoins.Pages
 
         public TodayViewModel ViewModel { get; set; } = new();
 
+        [BindProperty(SupportsGet = true)]
+        public string? Date { get; set; }
+
         public IndexModel(RubberJoinsRepository repository)
         {
             _repository = repository;
@@ -20,7 +24,18 @@ namespace RubberJoins.Pages
         public async Task OnGetAsync()
         {
             string userId = User.Identity?.Name ?? "default";
-            string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            var actualToday = DateTime.UtcNow;
+            string todayDateStr = actualToday.ToString("yyyy-MM-dd");
+
+            // Parse selected date from query param, default to today
+            DateTime selectedDate = actualToday;
+            if (!string.IsNullOrEmpty(Date) && DateTime.TryParse(Date, out var parsed))
+            {
+                selectedDate = parsed;
+            }
+            string selectedDateStr = selectedDate.ToString("yyyy-MM-dd");
+            bool isFuture = selectedDate.Date > actualToday.Date;
+            bool isToday = selectedDate.Date == actualToday.Date;
 
             try
             {
@@ -36,12 +51,12 @@ namespace RubberJoins.Pages
                 int week = 1;
                 if (DateTime.TryParse(enrollment.StartDate, out var enrollStart))
                 {
-                    int daysSince = (DateTime.UtcNow - enrollStart).Days;
+                    int daysSince = (selectedDate - enrollStart).Days;
                     week = Math.Max(1, daysSince / 7 + 1);
                 }
 
-                // Get today's plan
-                var planEntries = await _repository.GetUserDailyPlanAsync(userId, todayDate);
+                // Get plan for selected date
+                var planEntries = await _repository.GetUserDailyPlanAsync(userId, selectedDateStr);
 
                 // Get user settings for disabled tools
                 var settings = await _repository.GetUserSettingsAsync(userId);
@@ -51,8 +66,7 @@ namespace RubberJoins.Pages
                 planEntries = planEntries.Where(e => !disabledToolIds.Contains(e.ExerciseId)).ToList();
 
                 string dayType = planEntries.Count > 0 ? planEntries[0].DayType : "rest";
-                var dayOfWeek = DateTime.UtcNow.DayOfWeek;
-                var dayName = dayOfWeek.ToString();
+                var dayName = selectedDate.DayOfWeek.ToString();
 
                 (string sessionType, int estMinutes, string location) = GetSessionDetails(dayType);
 
@@ -60,11 +74,11 @@ namespace RubberJoins.Pages
                 var allExercises = await _repository.GetAllExercisesAsync();
                 var exerciseMap = allExercises.ToDictionary(e => e.Id);
 
-                // Get daily checks
-                var dailyChecks = await _repository.GetDailyChecksAsync(userId, todayDate);
+                // Get daily checks for selected date
+                var dailyChecks = await _repository.GetDailyChecksAsync(userId, selectedDateStr);
                 var checkMap = dailyChecks.ToDictionary(c => $"{c.ItemType}:{c.ItemId}:{c.StepIndex}", c => c.Checked);
 
-                // Build today steps from plan entries
+                // Build steps from plan entries
                 var todaySteps = new List<TodayStep>();
                 for (int i = 0; i < planEntries.Count; i++)
                 {
@@ -100,17 +114,27 @@ namespace RubberJoins.Pages
                     });
                 }
 
-                int durationWeeks = 4; // RubberJoins is 4 weeks
+                // Navigation dates
+                var prevDate = selectedDate.AddDays(-1);
+                var nextDate = selectedDate.AddDays(1);
+
                 ViewModel = new TodayViewModel
                 {
                     Week = week,
-                    Phase = week <= 2 ? 1 : 2, // simplified phase calc for 4-week program
+                    Phase = week <= 2 ? 1 : 2,
                     DayName = dayName,
                     SessionType = sessionType,
                     DayKey = dayType,
                     EstMinutes = estMinutes,
                     Steps = todaySteps,
-                    Supplements = supplementChecks
+                    Supplements = supplementChecks,
+                    SelectedDate = selectedDateStr,
+                    TodayDate = todayDateStr,
+                    SelectedDateLabel = selectedDate.ToString("dddd, MMM d"),
+                    PrevDate = prevDate.ToString("yyyy-MM-dd"),
+                    NextDate = nextDate.ToString("yyyy-MM-dd"),
+                    IsFuture = isFuture,
+                    IsToday = isToday
                 };
             }
             catch (Exception ex)

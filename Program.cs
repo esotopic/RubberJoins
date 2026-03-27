@@ -71,7 +71,6 @@ app.MapPost("/api/check", async (HttpContext context, RubberJoinsRepository repo
         return Results.Unauthorized();
 
     string userId = context.User.Identity?.Name ?? "default";
-    string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
 
     try
     {
@@ -84,10 +83,13 @@ app.MapPost("/api/check", async (HttpContext context, RubberJoinsRepository repo
         string itemId = root.GetProperty("itemId").GetString() ?? "";
         int stepIndex = root.TryGetProperty("stepIndex", out var si) ? si.GetInt32() : 0;
         bool checkedState = root.TryGetProperty("checked", out var cp) && cp.GetBoolean();
+        // Allow specifying a date for checking past days; default to today
+        string date = root.TryGetProperty("date", out var dp) ? dp.GetString() ?? "" : "";
+        if (string.IsNullOrEmpty(date)) date = DateTime.UtcNow.ToString("yyyy-MM-dd");
 
-        await repository.SetCheckAsync(userId, todayDate, itemType, itemId, stepIndex, checkedState);
+        await repository.SetCheckAsync(userId, date, itemType, itemId, stepIndex, checkedState);
 
-        return Results.Json(new { success = true, userId, todayDate, itemType, itemId, stepIndex, checkedState });
+        return Results.Json(new { success = true, userId, date, itemType, itemId, stepIndex, checkedState });
     }
     catch (Exception ex)
     {

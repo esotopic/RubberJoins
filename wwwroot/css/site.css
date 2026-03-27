@@ -1359,6 +1359,112 @@ input[type='date']::-webkit-calendar-picker-indicator {
   opacity: 0.5;
 }
 
+.week-day.selected {
+  background: var(--acc);
+  opacity: 1;
+}
+
+.week-day.selected .week-day-label,
+.week-day.selected .week-day-num {
+  color: #fff;
+  opacity: 1;
+}
+
+/* When selected AND today overlap, selected wins (same style) */
+.week-day.selected.today {
+  background: var(--acc);
+}
+
+/* ============================================================================
+   DAY NAVIGATION
+   ============================================================================ */
+
+.day-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 16px 8px;
+  padding: 8px 0;
+}
+
+.day-nav-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--s1);
+  border: 1px solid var(--brd);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--tx);
+  text-decoration: none;
+  transition: background 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.day-nav-arrow:hover {
+  background: var(--s2);
+}
+
+.day-nav-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.day-nav-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.day-nav-today-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--acc);
+  text-decoration: none;
+}
+
+.day-nav-today-link:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================================
+   FUTURE DAY READ-ONLY STYLES
+   ============================================================================ */
+
+.check-box-preview {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 2px dashed var(--brd);
+  border-radius: 8px;
+  background-color: transparent;
+  opacity: 0.5;
+}
+
+.supplement-check-preview {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 2px dashed var(--brd);
+  border-radius: 6px;
+  background-color: transparent;
+  opacity: 0.5;
+}
+
+.read-only {
+  opacity: 0.65;
+}
+
+.read-only .check-name,
+.read-only .supplement-name {
+  color: var(--tx3);
+}
+
 /* ============================================================================
    GROUP PROGRESS COUNTER
    ============================================================================ */
