@@ -44,13 +44,11 @@
 
     @if (Model.ViewModel.Steps.Any())
     {
-        @{
-            var grouped = Model.ViewModel.Steps
-                .GroupBy(s => s.Exercise.Category)
-                .OrderBy(g => GetSectionOrder(g.Key));
-        }
+        var grouped = Model.ViewModel.Steps
+            .GroupBy(s => s.Exercise.Category)
+            .OrderBy(g => GetSectionOrder(g.Key));
 
-        @foreach (var group in grouped)
+        foreach (var group in grouped)
         {
             <div class="session-group">
                 <div class="session-group-header">
