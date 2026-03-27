@@ -309,22 +309,40 @@ namespace RubberJoins.Data
                 }
 
                 // Add TimeGroup column to UserSupplements if missing (upgrade path)
+                // Step 1: Add column
                 using (var command = connection.CreateCommand())
                 {
                     command.CommandText = @"
                         IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='UserSupplements' AND COLUMN_NAME='TimeGroup')
+                            ALTER TABLE UserSupplements ADD TimeGroup NVARCHAR(50) NOT NULL CONSTRAINT DF_US_TimeGroup DEFAULT 'am'";
+                    await command.ExecuteNonQueryAsync();
+                }
+                // Step 2: Drop old unique constraint if it doesn't include TimeGroup
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        DECLARE @cname NVARCHAR(255);
+                        SELECT @cname = CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+                        WHERE TABLE_NAME='UserSupplements' AND CONSTRAINT_TYPE='UNIQUE';
+                        IF @cname IS NOT NULL
                         BEGIN
-                            ALTER TABLE UserSupplements ADD TimeGroup NVARCHAR(50) NOT NULL DEFAULT 'am';
-                            -- Drop old unique constraint and add new one with TimeGroup
-                            IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_NAME LIKE '%UserSupplements%' AND CONSTRAINT_TYPE='UNIQUE')
+                            -- Check if existing unique constraint has TimeGroup
+                            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE
+                                           WHERE TABLE_NAME='UserSupplements' AND CONSTRAINT_NAME=@cname AND COLUMN_NAME='TimeGroup')
                             BEGIN
-                                DECLARE @constraintName NVARCHAR(255);
-                                SELECT @constraintName = CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_NAME='UserSupplements' AND CONSTRAINT_TYPE='UNIQUE';
-                                EXEC('ALTER TABLE UserSupplements DROP CONSTRAINT ' + @constraintName);
+                                EXEC('ALTER TABLE UserSupplements DROP CONSTRAINT [' + @cname + ']');
+                                ALTER TABLE UserSupplements ADD CONSTRAINT UQ_UserSupplements_User_Supp_TG UNIQUE (UserId, SupplementId, TimeGroup);
                             END
-                            -- Update existing rows to use the supplement's default TimeGroup
-                            UPDATE us SET us.TimeGroup = s.TimeGroup FROM UserSupplements us JOIN Supplements s ON us.SupplementId = s.Id;
                         END";
+                    await command.ExecuteNonQueryAsync();
+                }
+                // Step 3: Update existing rows to use the supplement's default TimeGroup
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        UPDATE us SET us.TimeGroup = s.TimeGroup
+                        FROM UserSupplements us JOIN Supplements s ON us.SupplementId = s.Id
+                        WHERE us.TimeGroup = 'am' AND s.TimeGroup <> 'am'";
                     await command.ExecuteNonQueryAsync();
                 }
 
