@@ -1336,7 +1336,7 @@ namespace RubberJoins.Data
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    template.Add(new TrainingProgramTemplate
+                    template.Add(new ProgramTemplate
                     {
                         Id = reader.GetInt32(0),
                         ProgramId = reader.GetInt32(1),
