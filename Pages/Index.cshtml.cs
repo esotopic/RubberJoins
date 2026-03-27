@@ -141,7 +141,9 @@ namespace RubberJoins.Pages
             }
             catch (Exception ex)
             {
-                ViewModel.ErrorMessage = $"DB Error: {ex.GetType().Name}: {ex.Message}";
+                // Try running DB migration in case it didn't run at startup (e.g., DB was paused)
+                try { await _repository.InitializeAsync(); } catch { }
+                ViewModel.ErrorMessage = $"DB Error: {ex.GetType().Name}: {ex.Message} — Please refresh the page.";
             }
         }
 

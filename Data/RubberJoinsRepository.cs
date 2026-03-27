@@ -20,7 +20,12 @@ namespace RubberJoins.Data
         /// </summary>
         public async Task EnsureTablesExistAsync()
         {
-            using (var connection = new SqlConnection(_connectionString))
+            // Use longer timeout for init since Azure SQL Serverless may need to resume
+            var builder = new SqlConnectionStringBuilder(_connectionString)
+            {
+                ConnectTimeout = 120
+            };
+            using (var connection = new SqlConnection(builder.ConnectionString))
             {
                 await connection.OpenAsync();
 
