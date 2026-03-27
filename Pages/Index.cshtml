@@ -253,7 +253,7 @@ document.querySelectorAll('.check-item[data-step-id]').forEach(item => {
         updateProgressBars();
 
         try {
-            const response = await fetch('/Api?handler=check', {
+            const response = await fetch('/api/check', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -300,7 +300,7 @@ document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item =
         updateProgressBars();
 
         try {
-            const response = await fetch('/Api?handler=check', {
+            const response = await fetch('/api/check', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

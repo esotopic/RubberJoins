@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Text.Json;
+using RubberJoins.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,5 +58,128 @@ _ = Task.Run(async () =>
 });
 
 app.MapRazorPages();
+
+// ── Minimal API endpoints (bypass Razor Pages routing for reliable JSON responses) ──
+
+app.MapPost("/api/check", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    string userId = context.User.Identity?.Name ?? "default";
+    string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+    try
+    {
+        using var reader = new StreamReader(context.Request.Body);
+        var body = await reader.ReadToEndAsync();
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        string itemType = root.GetProperty("itemType").GetString() ?? "";
+        string itemId = root.GetProperty("itemId").GetString() ?? "";
+        int stepIndex = root.TryGetProperty("stepIndex", out var si) ? si.GetInt32() : 0;
+        bool checkedState = root.TryGetProperty("checked", out var cp) && cp.GetBoolean();
+
+        await repository.SetCheckAsync(userId, todayDate, itemType, itemId, stepIndex, checkedState);
+
+        return Results.Json(new { success = true, userId, todayDate, itemType, itemId, stepIndex, checkedState });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
+app.MapGet("/api/debug", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    string userId = context.User.Identity?.Name ?? "default";
+    string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+    try
+    {
+        var checks = await repository.GetDailyChecksAsync(userId, todayDate);
+        return Results.Json(new
+        {
+            userId,
+            todayDate,
+            utcNow = DateTime.UtcNow.ToString("o"),
+            checksCount = checks.Count,
+            checks = checks.Select(c => new { c.ItemType, c.ItemId, c.StepIndex, c.Checked })
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { error = ex.Message }, statusCode: 500);
+    }
+});
+
+app.MapPost("/api/milestone", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    string userId = context.User.Identity?.Name ?? "default";
+
+    try
+    {
+        using var reader = new StreamReader(context.Request.Body);
+        var body = await reader.ReadToEndAsync();
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+        string id = root.GetProperty("id").GetString() ?? "";
+        string today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+        await repository.CompleteUserMilestoneAsync(userId, id, today);
+        return Results.Json(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
+app.MapPost("/api/logsession", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Json(new { success = false, error = "not authenticated" });
+
+    string userId = context.User.Identity?.Name ?? "default";
+    string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+    try
+    {
+        string GetDayType(DayOfWeek d) => d switch
+        {
+            DayOfWeek.Monday => "gym",
+            DayOfWeek.Tuesday => "home",
+            DayOfWeek.Wednesday => "gym",
+            DayOfWeek.Thursday => "home",
+            DayOfWeek.Friday => "gym",
+            DayOfWeek.Saturday => "recovery",
+            DayOfWeek.Sunday => "rest",
+            _ => "rest"
+        };
+
+        var dayType = GetDayType(DateTime.UtcNow.DayOfWeek);
+        var sessionSteps = await repository.GetSessionStepsAsync(dayType);
+        var settings = await repository.GetUserSettingsAsync(userId);
+        var disabledToolIds = (settings?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+
+        int totalSteps = sessionSteps.Count(s => !disabledToolIds.Contains(s.ExerciseId));
+        var dailyChecks = await repository.GetDailyChecksAsync(userId, todayDate);
+        int completedSteps = dailyChecks.Count(c => c.ItemType == "step" && c.Checked);
+
+        await repository.LogSessionAsync(userId, todayDate, completedSteps, totalSteps);
+        return Results.Json(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
 
 app.Run();

@@ -78,7 +78,7 @@ document.querySelectorAll('.milestone-checkbox').forEach(checkbox => {
         const milestoneId = e.target.dataset.milestoneId;
 
         try {
-            const response = await fetch('/Api?handler=milestone', {
+            const response = await fetch('/api/milestone', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -100,7 +100,7 @@ document.querySelectorAll('.milestone-checkbox').forEach(checkbox => {
 });
 
 // Auto-log session on page load (fire and forget)
-fetch('/Api?handler=logsession', {
+fetch('/api/logsession', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({})
