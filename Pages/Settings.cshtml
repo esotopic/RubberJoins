@@ -6,10 +6,6 @@
 }
 
 <div class="page-content">
-    <header class="page-header">
-        <h1>Settings</h1>
-    </header>
-
     @if (!string.IsNullOrEmpty(Model.ErrorMessage))
     {
         <div class="error-banner">@Model.ErrorMessage</div>
@@ -17,111 +13,108 @@
 
     @if (!string.IsNullOrEmpty(Model.SuccessMessage))
     {
-        <div class="success-banner">@Model.SuccessMessage</div>
+        <div class="success-banner" style="background:rgba(52,199,89,0.1);color:var(--grn);padding:12px 16px;margin:0 16px 12px;border-radius:10px;font-size:13px;font-weight:500;text-align:center;">@Model.SuccessMessage</div>
     }
 
-    <form method="post" class="settings-form">
-        <section class="settings-section">
-            <h2 class="section-title">Program Start Date</h2>
-            <div class="form-group">
-                <label for="StartDate">Start Date</label>
-                <input type="date" id="StartDate" name="StartDate" value="@Model.StartDate" class="form-input">
+    <!-- Header -->
+    <section class="activity-summary" style="text-align:center;">
+        <h2 class="activity-title" style="letter-spacing:0.12em;">Settings</h2>
+    </section>
+
+    <form method="post" id="settingsForm">
+        <!-- Program Start Date -->
+        <div class="settings-card">
+            <div class="settings-card-title">Program Start Date</div>
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">When did you start?</div>
+                    <div class="setting-sub">
+                        @if (!string.IsNullOrEmpty(Model.StartDate))
+                        {
+                            <text>Week @Model.CurrentWeek · Phase @Model.CurrentPhase: @GetPhaseLabel(Model.CurrentPhase)</text>
+                        }
+                        else
+                        {
+                            <text>Not set — defaults to Week 1</text>
+                        }
+                    </div>
+                </div>
+                <input type="date" id="StartDate" name="StartDate" value="@Model.StartDate">
             </div>
-            @if (!string.IsNullOrEmpty(Model.StartDate))
+        </div>
+
+        <!-- Recovery Tools -->
+        <div class="settings-card">
+            <div class="settings-card-title">Recovery Tools Available</div>
+            <div class="settings-card-desc">Disabled tools are removed from sessions</div>
+
+            @{
+                var tools = new[] {
+                    ("hot-tub", "Hot Tub"),
+                    ("vibration-plate", "Vibration Plate"),
+                    ("hydro-massager", "Hydro Massager"),
+                    ("steam-sauna", "Steam Sauna"),
+                    ("dry-sauna", "Dry Sauna"),
+                    ("compex-warmup", "Compex Warm-Up"),
+                    ("compex-recovery", "Compex Recovery"),
+                    ("compression-boots", "Compression Boots")
+                };
+            }
+
+            @foreach (var (id, label) in tools)
             {
-                <div class="phase-info">
-                    <p>Week <strong>@Model.CurrentWeek</strong> of 12</p>
-                    <p>Phase <strong>@Model.CurrentPhase</strong>: @GetPhaseLabel(Model.CurrentPhase)</p>
+                var isEnabled = Model.RecoveryTools.ContainsKey(id) && Model.RecoveryTools[id];
+                <div class="setting-row">
+                    <div class="setting-label">@label</div>
+                    <input type="hidden" name="RecoveryTools[@id]" value="false" class="tool-hidden" data-tool="@id">
+                    <div class="toggle @(isEnabled ? "on" : "")" data-tool="@id">
+                        <i></i>
+                    </div>
                 </div>
             }
-        </section>
+        </div>
 
-        <section class="settings-section">
-            <h2 class="section-title">Recovery Tools Available</h2>
-            <p class="section-description">Toggle the recovery tools you have access to. Disabled tools will be hidden from your sessions.</p>
-            <div class="tools-list">
-                <div class="tool-item">
-                    <label class="toggle-label" for="RecoveryTools_hot-tub">
-                        <input type="hidden" name="RecoveryTools[hot-tub]" value="false">
-                        <input type="checkbox" id="RecoveryTools_hot-tub" name="RecoveryTools[hot-tub]" value="true" @(Model.RecoveryTools.ContainsKey("hot-tub") && Model.RecoveryTools["hot-tub"] ? "checked" : "")>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="tool-name">Hot Tub</span>
-                </div>
-                <div class="tool-item">
-                    <label class="toggle-label" for="RecoveryTools_vibration-plate">
-                        <input type="hidden" name="RecoveryTools[vibration-plate]" value="false">
-                        <input type="checkbox" id="RecoveryTools_vibration-plate" name="RecoveryTools[vibration-plate]" value="true" @(Model.RecoveryTools.ContainsKey("vibration-plate") && Model.RecoveryTools["vibration-plate"] ? "checked" : "")>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="tool-name">Vibration Plate</span>
-                </div>
-                <div class="tool-item">
-                    <label class="toggle-label" for="RecoveryTools_hydro-massager">
-                        <input type="hidden" name="RecoveryTools[hydro-massager]" value="false">
-                        <input type="checkbox" id="RecoveryTools_hydro-massager" name="RecoveryTools[hydro-massager]" value="true" @(Model.RecoveryTools.ContainsKey("hydro-massager") && Model.RecoveryTools["hydro-massager"] ? "checked" : "")>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="tool-name">Hydro Massager</span>
-                </div>
-                <div class="tool-item">
-                    <label class="toggle-label" for="RecoveryTools_steam-sauna">
-                        <input type="hidden" name="RecoveryTools[steam-sauna]" value="false">
-                        <input type="checkbox" id="RecoveryTools_steam-sauna" name="RecoveryTools[steam-sauna]" value="true" @(Model.RecoveryTools.ContainsKey("steam-sauna") && Model.RecoveryTools["steam-sauna"] ? "checked" : "")>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="tool-name">Steam Sauna</span>
-                </div>
-                <div class="tool-item">
-                    <label class="toggle-label" for="RecoveryTools_dry-sauna">
-                        <input type="hidden" name="RecoveryTools[dry-sauna]" value="false">
-                        <input type="checkbox" id="RecoveryTools_dry-sauna" name="RecoveryTools[dry-sauna]" value="true" @(Model.RecoveryTools.ContainsKey("dry-sauna") && Model.RecoveryTools["dry-sauna"] ? "checked" : "")>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="tool-name">Dry Sauna</span>
-                </div>
-                <div class="tool-item">
-                    <label class="toggle-label" for="RecoveryTools_compex-warmup">
-                        <input type="hidden" name="RecoveryTools[compex-warmup]" value="false">
-                        <input type="checkbox" id="RecoveryTools_compex-warmup" name="RecoveryTools[compex-warmup]" value="true" @(Model.RecoveryTools.ContainsKey("compex-warmup") && Model.RecoveryTools["compex-warmup"] ? "checked" : "")>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="tool-name">Compex Warm-Up</span>
-                </div>
-                <div class="tool-item">
-                    <label class="toggle-label" for="RecoveryTools_compex-recovery">
-                        <input type="hidden" name="RecoveryTools[compex-recovery]" value="false">
-                        <input type="checkbox" id="RecoveryTools_compex-recovery" name="RecoveryTools[compex-recovery]" value="true" @(Model.RecoveryTools.ContainsKey("compex-recovery") && Model.RecoveryTools["compex-recovery"] ? "checked" : "")>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="tool-name">Compex Recovery</span>
-                </div>
-                <div class="tool-item">
-                    <label class="toggle-label" for="RecoveryTools_compression-boots">
-                        <input type="hidden" name="RecoveryTools[compression-boots]" value="false">
-                        <input type="checkbox" id="RecoveryTools_compression-boots" name="RecoveryTools[compression-boots]" value="true" @(Model.RecoveryTools.ContainsKey("compression-boots") && Model.RecoveryTools["compression-boots"] ? "checked" : "")>
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="tool-name">Compression Boots</span>
-                </div>
+        <button type="submit" class="btn-save">Save Settings</button>
+    </form>
+
+    <!-- Data / Reset Section -->
+    <div class="settings-card">
+        <div class="settings-card-title">Data</div>
+        <div class="setting-row">
+            <div>
+                <div class="setting-label">Reset all progress</div>
+                <div class="setting-sub">This cannot be undone</div>
             </div>
-        </section>
-
-        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-            Save Settings
-        </button>
-    </form>
-
-    <form method="post" asp-page-handler="reset" style="margin-top: 20px;">
-        <button type="button" id="resetBtn" class="btn btn-danger" style="width: 100%; background-color: #e74c3c;">
-            Reset All Progress
-        </button>
-    </form>
+            <form method="post" asp-page-handler="reset" style="margin:0;">
+                <button type="button" id="resetBtn" class="btn-reset">Reset</button>
+            </form>
+        </div>
+    </div>
 
     <div style="height: 100px;"></div>
 </div>
 
 <script>
+// Toggle switches
+document.querySelectorAll('.toggle[data-tool]').forEach(tog => {
+    tog.addEventListener('click', () => {
+        tog.classList.toggle('on');
+        const toolId = tog.dataset.tool;
+        const hidden = document.querySelector(`.tool-hidden[data-tool="${toolId}"]`);
+        if (hidden) {
+            hidden.value = tog.classList.contains('on') ? 'true' : 'false';
+        }
+    });
+});
+
+// Set initial hidden values for enabled tools
+document.querySelectorAll('.toggle.on[data-tool]').forEach(tog => {
+    const toolId = tog.dataset.tool;
+    const hidden = document.querySelector(`.tool-hidden[data-tool="${toolId}"]`);
+    if (hidden) hidden.value = 'true';
+});
+
+// Reset confirmation
 const resetBtn = document.getElementById('resetBtn');
 if (resetBtn) {
     resetBtn.addEventListener('click', () => {

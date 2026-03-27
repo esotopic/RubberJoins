@@ -1475,6 +1475,158 @@ input[type='date']::-webkit-calendar-picker-indicator {
    PRINT STYLES
    ============================================================================ */
 
+/* ============================================================================
+   PROGRESS PAGE ENHANCEMENTS
+   ============================================================================ */
+
+.week-pill {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(74, 108, 247, 0.1);
+  color: var(--acc);
+}
+
+.ms-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tx);
+}
+
+.ms-date {
+  font-size: 11px;
+  color: var(--tx3);
+  margin-top: 1px;
+}
+
+/* ============================================================================
+   SETTINGS PAGE CARDS
+   ============================================================================ */
+
+.settings-card {
+  background-color: var(--s1);
+  border: 1px solid var(--brd);
+  border-radius: 16px;
+  padding: 16px;
+  margin: 0 16px 14px;
+}
+
+.settings-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--tx3);
+  margin-bottom: 10px;
+}
+
+.settings-card-desc {
+  font-size: 12px;
+  color: var(--tx3);
+  margin-bottom: 8px;
+}
+
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(209, 209, 214, 0.5);
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.setting-label {
+  font-size: 14px;
+  color: var(--tx);
+  font-weight: 500;
+}
+
+.setting-sub {
+  font-size: 11px;
+  color: var(--tx3);
+  margin-top: 2px;
+}
+
+/* Toggle Switch */
+.toggle {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  background-color: var(--s3);
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 200ms ease;
+  flex-shrink: 0;
+}
+
+.toggle i {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: left 200ms ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.toggle.on {
+  background-color: var(--grn);
+}
+
+.toggle.on i {
+  left: 21px;
+}
+
+.btn-reset {
+  background: var(--red);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+
+.btn-reset:active {
+  opacity: 0.8;
+}
+
+.btn-save {
+  width: 100%;
+  background: var(--acc);
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 6px 16px 14px;
+  max-width: calc(100% - 32px);
+  transition: opacity 150ms ease;
+}
+
+.btn-save:active {
+  opacity: 0.8;
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
 @media print {
   .nav,
   button {
