@@ -294,10 +294,31 @@ namespace RubberJoins.Data
                                 Id INT IDENTITY(1,1) PRIMARY KEY,
                                 UserId NVARCHAR(100) NOT NULL,
                                 SupplementId NVARCHAR(50) NOT NULL,
+                                TimeGroup NVARCHAR(50) NOT NULL DEFAULT 'am',
                                 AddedDate NVARCHAR(10) NOT NULL,
                                 FOREIGN KEY (SupplementId) REFERENCES Supplements(Id),
-                                UNIQUE (UserId, SupplementId)
+                                UNIQUE (UserId, SupplementId, TimeGroup)
                             )
+                        END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                // Add TimeGroup column to UserSupplements if missing (upgrade path)
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='UserSupplements' AND COLUMN_NAME='TimeGroup')
+                        BEGIN
+                            ALTER TABLE UserSupplements ADD TimeGroup NVARCHAR(50) NOT NULL DEFAULT 'am';
+                            -- Drop old unique constraint and add new one with TimeGroup
+                            IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_NAME LIKE '%UserSupplements%' AND CONSTRAINT_TYPE='UNIQUE')
+                            BEGIN
+                                DECLARE @constraintName NVARCHAR(255);
+                                SELECT @constraintName = CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_NAME='UserSupplements' AND CONSTRAINT_TYPE='UNIQUE';
+                                EXEC('ALTER TABLE UserSupplements DROP CONSTRAINT ' + @constraintName);
+                            END
+                            -- Update existing rows to use the supplement's default TimeGroup
+                            UPDATE us SET us.TimeGroup = s.TimeGroup FROM UserSupplements us JOIN Supplements s ON us.SupplementId = s.Id;
                         END";
                     await command.ExecuteNonQueryAsync();
                 }
@@ -1612,6 +1633,7 @@ namespace RubberJoins.Data
         /// <summary>
         /// Ensures the user has UserSupplements rows. If none exist, seeds with the 7 default supplements.
         /// Returns the user's active supplements for the given date (where AddedDate <= date).
+        /// Uses the TimeGroup from UserSupplements (not the supplement's default) to allow per-section placement.
         /// </summary>
         public async Task<List<Supplement>> GetUserSupplementsForDateAsync(string userId, string date)
         {
@@ -1631,8 +1653,7 @@ namespace RubberJoins.Data
             // Auto-seed defaults for existing users who don't have UserSupplements yet
             if (count == 0)
             {
-                string startDate = date; // default to current date
-                // Try to get enrollment start date
+                string startDate = date;
                 var enrollment = await GetActiveEnrollmentAsync(userId);
                 if (enrollment != null) startDate = enrollment.StartDate;
 
@@ -1645,7 +1666,8 @@ namespace RubberJoins.Data
                     using var seedCmd = connection.CreateCommand();
                     seedCmd.CommandText = @"
                         IF EXISTS (SELECT 1 FROM Supplements WHERE Id = @suppId)
-                            INSERT INTO UserSupplements (UserId, SupplementId, AddedDate) VALUES (@userId, @suppId, @addedDate)";
+                            INSERT INTO UserSupplements (UserId, SupplementId, TimeGroup, AddedDate)
+                            SELECT @userId, @suppId, TimeGroup, @addedDate FROM Supplements WHERE Id = @suppId";
                     seedCmd.Parameters.AddWithValue("@userId", userId);
                     seedCmd.Parameters.AddWithValue("@suppId", suppId);
                     seedCmd.Parameters.AddWithValue("@addedDate", startDate);
@@ -1653,15 +1675,15 @@ namespace RubberJoins.Data
                 }
             }
 
-            // Now fetch user's supplements for the given date
+            // Fetch user's supplements for the given date, using UserSupplements.TimeGroup for grouping
             using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = @"
-                    SELECT s.Id, s.Name, s.Dose, s.Time, s.TimeGroup
+                    SELECT s.Id, s.Name, s.Dose, s.Time, us.TimeGroup
                     FROM UserSupplements us
                     JOIN Supplements s ON us.SupplementId = s.Id
                     WHERE us.UserId = @userId AND us.AddedDate <= @date
-                    ORDER BY s.TimeGroup, s.Name";
+                    ORDER BY us.TimeGroup, s.Name";
                 cmd.Parameters.AddWithValue("@userId", userId);
                 cmd.Parameters.AddWithValue("@date", date);
                 using var reader = await cmd.ExecuteReaderAsync();
@@ -1682,9 +1704,10 @@ namespace RubberJoins.Data
         }
 
         /// <summary>
-        /// Gets supplements available to add (not yet in user's active list).
+        /// Gets all supplements (for the picker). Any supplement can be added to any time group.
+        /// Excludes supplements already in the specified timeGroup for this user.
         /// </summary>
-        public async Task<List<Supplement>> GetAvailableSupplementsAsync(string userId)
+        public async Task<List<Supplement>> GetAvailableSupplementsForGroupAsync(string userId, string timeGroup)
         {
             var supplements = new List<Supplement>();
             using var connection = new SqlConnection(_connectionString);
@@ -1693,9 +1716,12 @@ namespace RubberJoins.Data
             cmd.CommandText = @"
                 SELECT s.Id, s.Name, s.Dose, s.Time, s.TimeGroup
                 FROM Supplements s
-                WHERE s.Id NOT IN (SELECT SupplementId FROM UserSupplements WHERE UserId = @userId)
-                ORDER BY s.TimeGroup, s.Name";
+                WHERE s.Id NOT IN (
+                    SELECT SupplementId FROM UserSupplements WHERE UserId = @userId AND TimeGroup = @timeGroup
+                )
+                ORDER BY s.Name";
             cmd.Parameters.AddWithValue("@userId", userId);
+            cmd.Parameters.AddWithValue("@timeGroup", timeGroup);
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -1712,26 +1738,29 @@ namespace RubberJoins.Data
         }
 
         /// <summary>
-        /// Adds a supplement to the user's active list with AddedDate so it shows on that date and all future dates.
+        /// Adds a supplement to a specific time group for the user.
+        /// Same supplement can be in multiple time groups.
         /// </summary>
-        public async Task<bool> AddUserSupplementAsync(string userId, string supplementId, string addedDate)
+        public async Task<bool> AddUserSupplementAsync(string userId, string supplementId, string timeGroup, string addedDate)
         {
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
 
-            // Check if already added
+            // Check if already added to this time group
             using (var checkCmd = connection.CreateCommand())
             {
-                checkCmd.CommandText = "SELECT COUNT(*) FROM UserSupplements WHERE UserId = @userId AND SupplementId = @suppId";
+                checkCmd.CommandText = "SELECT COUNT(*) FROM UserSupplements WHERE UserId = @userId AND SupplementId = @suppId AND TimeGroup = @timeGroup";
                 checkCmd.Parameters.AddWithValue("@userId", userId);
                 checkCmd.Parameters.AddWithValue("@suppId", supplementId);
+                checkCmd.Parameters.AddWithValue("@timeGroup", timeGroup);
                 if ((int)await checkCmd.ExecuteScalarAsync() > 0) return false;
             }
 
             using var cmd = connection.CreateCommand();
-            cmd.CommandText = "INSERT INTO UserSupplements (UserId, SupplementId, AddedDate) VALUES (@userId, @suppId, @addedDate)";
+            cmd.CommandText = "INSERT INTO UserSupplements (UserId, SupplementId, TimeGroup, AddedDate) VALUES (@userId, @suppId, @timeGroup, @addedDate)";
             cmd.Parameters.AddWithValue("@userId", userId);
             cmd.Parameters.AddWithValue("@suppId", supplementId);
+            cmd.Parameters.AddWithValue("@timeGroup", timeGroup);
             cmd.Parameters.AddWithValue("@addedDate", addedDate);
             await cmd.ExecuteNonQueryAsync();
             return true;

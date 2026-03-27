@@ -154,7 +154,7 @@ app.MapGet("/api/exercises", async (HttpContext context, RubberJoinsRepository r
     }
 });
 
-// ── Get available supplements to add (not yet in user's list) ──
+// ── Get available supplements to add (not yet in user's time group) ──
 app.MapGet("/api/supplements/available", async (HttpContext context, RubberJoinsRepository repository) =>
 {
     if (context.User.Identity?.IsAuthenticated != true)
@@ -163,7 +163,11 @@ app.MapGet("/api/supplements/available", async (HttpContext context, RubberJoins
     try
     {
         string userId = context.User.Identity?.Name ?? "default";
-        var supplements = await repository.GetAvailableSupplementsAsync(userId);
+        string timeGroup = context.Request.Query["timeGroup"].ToString();
+        if (string.IsNullOrEmpty(timeGroup))
+            return Results.Json(new { success = false, error = "Missing timeGroup" }, statusCode: 400);
+
+        var supplements = await repository.GetAvailableSupplementsForGroupAsync(userId, timeGroup);
         return Results.Json(supplements.Select(s => new {
             id = s.Id,
             name = s.Name,
@@ -178,7 +182,7 @@ app.MapGet("/api/supplements/available", async (HttpContext context, RubberJoins
     }
 });
 
-// ── Add supplement to user's active list ──
+// ── Add supplement to user's active list (with time group) ──
 app.MapPost("/api/supplements/add", async (HttpContext context, RubberJoinsRepository repository) =>
 {
     if (context.User.Identity?.IsAuthenticated != true)
@@ -192,13 +196,14 @@ app.MapPost("/api/supplements/add", async (HttpContext context, RubberJoinsRepos
 
         string supplementId = root.GetProperty("supplementId").GetString() ?? "";
         string date = root.GetProperty("date").GetString() ?? "";
+        string timeGroup = root.GetProperty("timeGroup").GetString() ?? "";
 
-        if (string.IsNullOrEmpty(supplementId) || string.IsNullOrEmpty(date))
+        if (string.IsNullOrEmpty(supplementId) || string.IsNullOrEmpty(date) || string.IsNullOrEmpty(timeGroup))
             return Results.Json(new { success = false, error = "Missing required fields" }, statusCode: 400);
 
-        bool added = await repository.AddUserSupplementAsync(userId, supplementId, date);
+        bool added = await repository.AddUserSupplementAsync(userId, supplementId, timeGroup, date);
         if (!added)
-            return Results.Json(new { success = false, error = "Supplement already in your list" }, statusCode: 409);
+            return Results.Json(new { success = false, error = "Supplement already in this time group" }, statusCode: 409);
 
         return Results.Json(new { success = true });
     }

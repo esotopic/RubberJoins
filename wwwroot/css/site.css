@@ -922,6 +922,22 @@ input[type='date']::-webkit-calendar-picker-indicator {
   margin-bottom: 12px;
 }
 
+.supplement-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.supplement-group-header .group-title {
+  flex: 1;
+  margin: 0;
+}
+
+.supplement-group-header .add-exercise-btn {
+  flex-shrink: 0;
+}
+
 .group-header {
   font-size: 12px;
   font-weight: 700;

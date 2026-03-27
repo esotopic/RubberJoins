@@ -105,7 +105,9 @@ namespace RubberJoins.Pages
                 var supplementChecks = new List<SupplementCheck>();
                 foreach (var supp in userSupplements)
                 {
-                    string checkKey = $"supplement:{supp.Id}:0";
+                    // Use timeGroup index as StepIndex so same supplement in different groups gets separate checks
+                    int tgIndex = supp.TimeGroup switch { "am" => 0, "mid" => 1, "pm" => 2, _ => 0 };
+                    string checkKey = $"supplement:{supp.Id}:{tgIndex}";
                     bool isChecked = checkMap.TryGetValue(checkKey, out var val) && val;
                     supplementChecks.Add(new SupplementCheck
                     {

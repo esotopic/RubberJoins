@@ -239,50 +239,56 @@
             <span class="dot" style="background:#ffcc00;"></span>
             <span>Vitamins</span>
             <span class="group-progress" id="supp-group-progress">@suppsDone/@suppsTotal</span>
-            @if (!isFuture)
-            {
-                <button class="add-exercise-btn" id="add-supplement-btn" title="Add supplement">+</button>
-            }
         </div>
-        @if (Model.ViewModel.Supplements.Any())
-        {
-            <div class="supplements-list">
-                @foreach (var group in Model.ViewModel.Supplements.GroupBy(s => s.Supplement.TimeGroup))
-                {
-                    <div class="supplement-group">
-                        <h3 class="group-title">@GetTimeGroupLabel(group.Key)</h3>
-                        @foreach (var item in group)
+        @{
+            var suppsByGroup = Model.ViewModel.Supplements
+                .GroupBy(s => s.Supplement.TimeGroup)
+                .ToDictionary(g => g.Key, g => g.ToList());
+            var timeGroups = new[] { "am", "mid", "pm" };
+        }
+        <div class="supplements-list">
+            @foreach (var tg in timeGroups)
+            {
+                var groupSupps = suppsByGroup.ContainsKey(tg) ? suppsByGroup[tg] : new List<RubberJoins.Models.SupplementCheck>();
+                <div class="supplement-group">
+                    <div class="supplement-group-header">
+                        <h3 class="group-title">@GetTimeGroupLabel(tg)</h3>
+                        @if (!isFuture)
                         {
-                            <div class="supplement-item @(item.Checked ? "taken" : "") @(isFuture ? "read-only" : "")" data-supplement-id="@item.Supplement.Id">
-                                @if (!isFuture)
-                                {
-                                    <div class="supplement-check"></div>
-                                }
-                                else
-                                {
-                                    <div class="supplement-check-preview"></div>
-                                }
-                                <span class="supplement-name">@item.Supplement.Name</span>
-                                <span class="supplement-dose">@item.Supplement.Dose</span>
-                            </div>
+                            <button class="add-exercise-btn add-supplement-btn" data-time-group="@tg" title="Add @GetTimeGroupLabel(tg) supplement">+</button>
                         }
                     </div>
-                }
-            </div>
-        }
-        else
-        {
-            <div class="empty-section-hint">
-                @if (!isFuture)
-                {
-                    <span>Tap + to add supplements</span>
-                }
-                else
-                {
-                    <span>No supplements scheduled</span>
-                }
-            </div>
-        }
+                    @if (groupSupps.Count == 0)
+                    {
+                        <div class="empty-section-hint">
+                            @if (!isFuture)
+                            {
+                                <span>Tap + to add supplements</span>
+                            }
+                            else
+                            {
+                                <span>No supplements</span>
+                            }
+                        </div>
+                    }
+                    @foreach (var item in groupSupps)
+                    {
+                        <div class="supplement-item @(item.Checked ? "taken" : "") @(isFuture ? "read-only" : "")" data-supplement-id="@item.Supplement.Id" data-time-group="@tg">
+                            @if (!isFuture)
+                            {
+                                <div class="supplement-check"></div>
+                            }
+                            else
+                            {
+                                <div class="supplement-check-preview"></div>
+                            }
+                            <span class="supplement-name">@item.Supplement.Name</span>
+                            <span class="supplement-dose">@item.Supplement.Dose</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     </section>
 
     <!-- Exercise Picker Modal -->
@@ -352,6 +358,12 @@ function updateProgressBars() {
         const progEl = group.querySelector('.group-progress');
         if (progEl) progEl.textContent = done + '/' + total;
     });
+
+    // Update supplement group progress
+    const suppProgEl = document.getElementById('supp-group-progress');
+    if (suppProgEl) {
+        suppProgEl.textContent = categoryTotals.supplements.done + '/' + categoryTotals.supplements.total;
+    }
 }
 
 // Session step checkboxes — only if not future
@@ -404,10 +416,13 @@ if (!IS_FUTURE) {
         });
     });
 
-    // Supplement checkboxes
+    // Supplement checkboxes — use timeGroup-based stepIndex for unique checks
+    const timeGroupIndex = { am: 0, mid: 1, pm: 2 };
     document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item => {
         item.addEventListener('click', async (e) => {
             const supplementId = item.dataset.supplementId;
+            const tg = item.dataset.timeGroup || 'am';
+            const stepIdx = timeGroupIndex[tg] ?? 0;
             const wasTaken = item.classList.contains('taken');
             const newState = !wasTaken;
 
@@ -422,7 +437,7 @@ if (!IS_FUTURE) {
                     body: JSON.stringify({
                         itemType: 'supplement',
                         itemId: supplementId,
-                        stepIndex: 0,
+                        stepIndex: stepIdx,
                         checked: newState,
                         date: PAGE_DATE
                     })
@@ -553,56 +568,41 @@ if (!IS_FUTURE) {
     });
 }
 
-// ── Supplement Picker ──
+// ── Supplement Picker (per time group) ──
 const suppPickerOverlay = document.getElementById('supp-picker-overlay');
 const suppPickerList = document.getElementById('supp-picker-list');
 const suppPickerClose = document.getElementById('supp-picker-close');
+let suppPickerTimeGroup = '';
 
-function openSuppPicker() {
+function openSuppPicker(timeGroup) {
+    suppPickerTimeGroup = timeGroup;
+    const groupLabels = { am: 'Morning', mid: 'Midday', pm: 'Evening' };
+    document.querySelector('#supp-picker-overlay .picker-title').textContent = 'Add ' + (groupLabels[timeGroup] || '') + ' Supplement';
     suppPickerList.innerHTML = '<div class="picker-loading">Loading...</div>';
     suppPickerOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 
-    fetch('/api/supplements/available')
+    fetch(`/api/supplements/available?timeGroup=${encodeURIComponent(timeGroup)}`)
         .then(r => r.json())
         .then(supplements => {
             if (supplements.length === 0) {
-                suppPickerList.innerHTML = '<div class="picker-loading">All supplements already added</div>';
+                suppPickerList.innerHTML = '<div class="picker-loading">All supplements already added to this group</div>';
                 return;
             }
             suppPickerList.innerHTML = '';
 
-            // Group by timeGroup
-            const groups = {};
             supplements.forEach(s => {
-                const g = s.timeGroup || 'other';
-                if (!groups[g]) groups[g] = [];
-                groups[g].push(s);
-            });
-
-            const groupLabels = { am: 'Morning', mid: 'Midday', pm: 'Evening', other: 'Other' };
-            const groupOrder = ['am', 'mid', 'pm', 'other'];
-
-            groupOrder.forEach(g => {
-                if (!groups[g]) return;
-                const header = document.createElement('div');
-                header.className = 'picker-group-header';
-                header.textContent = groupLabels[g] || g;
-                suppPickerList.appendChild(header);
-
-                groups[g].forEach(s => {
-                    const item = document.createElement('div');
-                    item.className = 'picker-item';
-                    item.innerHTML = `
-                        <div class="picker-item-info">
-                            <span class="picker-item-name">${s.name}</span>
-                            <span class="picker-item-targets">${s.dose}</span>
-                        </div>
-                        <span class="picker-item-rx">${s.time}</span>
-                    `;
-                    item.addEventListener('click', () => addSupplement(s));
-                    suppPickerList.appendChild(item);
-                });
+                const item = document.createElement('div');
+                item.className = 'picker-item';
+                item.innerHTML = `
+                    <div class="picker-item-info">
+                        <span class="picker-item-name">${s.name}</span>
+                        <span class="picker-item-targets">${s.dose}</span>
+                    </div>
+                    <span class="picker-item-rx">${s.time}</span>
+                `;
+                item.addEventListener('click', () => addSupplement(s));
+                suppPickerList.appendChild(item);
             });
         })
         .catch(err => {
@@ -629,7 +629,8 @@ async function addSupplement(supplement) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 supplementId: supplement.id,
-                date: PAGE_DATE
+                date: PAGE_DATE,
+                timeGroup: suppPickerTimeGroup
             })
         });
         const result = await response.json();
@@ -643,15 +644,14 @@ async function addSupplement(supplement) {
     }
 }
 
-// Wire up supplement + button
+// Wire up per-time-group supplement + buttons
 if (!IS_FUTURE) {
-    const suppBtn = document.getElementById('add-supplement-btn');
-    if (suppBtn) {
-        suppBtn.addEventListener('click', (e) => {
+    document.querySelectorAll('.add-supplement-btn[data-time-group]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openSuppPicker();
+            openSuppPicker(btn.dataset.timeGroup);
         });
-    }
+    });
 }
 
 // Swipe gesture support for day navigation
