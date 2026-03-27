@@ -163,10 +163,14 @@
                     <span class="dot" style="background-color: @GetCategoryColor(group.Key);"></span>
                     <span>@GetSectionLabel(group.Key)</span>
                     <span class="group-progress">@group.Count(s => s.Checked)/@group.Count()</span>
+                    @if (!isFuture)
+                    {
+                        <button class="add-exercise-btn" data-category="@group.Key" title="Add exercise">+</button>
+                    }
                 </div>
                 @foreach (var step in group)
                 {
-                    <div class="check-item @(step.Checked ? "done" : "") @(isFuture ? "read-only" : "")" data-step-id="@step.SessionStepId" data-step-index="@step.Index" data-category="@step.Exercise.Category">
+                    <div class="check-item @(step.Checked ? "done" : "") @(isFuture ? "read-only" : "")" data-step-id="@step.SessionStepId" data-step-index="@step.Index" data-category="@step.Exercise.Category" data-exercise-id="@step.Exercise.Id">
                         @if (!isFuture)
                         {
                             <div class="check-box"></div>
@@ -215,6 +219,15 @@
                   "This was a rest day.")
             </p>
         </div>
+
+        @if (!isFuture)
+        {
+            <div class="add-section-bar">
+                <button class="add-exercise-btn-large" data-category="warmup_tool">+ Warm-up</button>
+                <button class="add-exercise-btn-large" data-category="mobility">+ Mobility</button>
+                <button class="add-exercise-btn-large" data-category="recovery_tool">+ Recovery</button>
+            </div>
+        }
     }
 
     @if (Model.ViewModel.Supplements.Any())
@@ -246,6 +259,19 @@
             </div>
         </section>
     }
+
+    <!-- Exercise Picker Modal -->
+    <div id="exercise-picker-overlay" class="picker-overlay" style="display:none;">
+        <div class="picker-sheet">
+            <div class="picker-header">
+                <span class="picker-title">Add Exercise</span>
+                <button class="picker-close" id="picker-close">&times;</button>
+            </div>
+            <div class="picker-list" id="picker-list">
+                <div class="picker-loading">Loading...</div>
+            </div>
+        </div>
+    </div>
 
     <div style="height: 100px;"></div>
 </div>
@@ -391,6 +417,103 @@ document.querySelectorAll('.check-info').forEach(info => {
         }
     });
 });
+
+// ── Exercise Picker ──
+const pickerOverlay = document.getElementById('exercise-picker-overlay');
+const pickerList = document.getElementById('picker-list');
+const pickerClose = document.getElementById('picker-close');
+let pickerCategory = '';
+
+function openPicker(category) {
+    pickerCategory = category;
+    pickerList.innerHTML = '<div class="picker-loading">Loading...</div>';
+    pickerOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // Get existing exercise IDs in this category
+    const existingIds = new Set();
+    document.querySelectorAll(`.check-item[data-category="${category}"]`).forEach(el => {
+        const exId = el.dataset.exerciseId;
+        if (exId) existingIds.add(exId);
+    });
+
+    fetch(`/api/exercises?category=${encodeURIComponent(category)}`)
+        .then(r => r.json())
+        .then(exercises => {
+            if (exercises.length === 0) {
+                pickerList.innerHTML = '<div class="picker-loading">No exercises available</div>';
+                return;
+            }
+            pickerList.innerHTML = '';
+            exercises.forEach(ex => {
+                const alreadyAdded = existingIds.has(ex.id);
+                const item = document.createElement('div');
+                item.className = 'picker-item' + (alreadyAdded ? ' picker-item-disabled' : '');
+                item.innerHTML = `
+                    <div class="picker-item-info">
+                        <span class="picker-item-name">${ex.name}</span>
+                        <span class="picker-item-targets">${ex.targets}</span>
+                    </div>
+                    <span class="picker-item-rx">${ex.defaultRx || ''}</span>
+                    ${alreadyAdded ? '<span class="picker-item-added">Added</span>' : ''}
+                `;
+                if (!alreadyAdded) {
+                    item.addEventListener('click', () => addExercise(ex));
+                }
+                pickerList.appendChild(item);
+            });
+        })
+        .catch(err => {
+            pickerList.innerHTML = '<div class="picker-loading">Error loading exercises</div>';
+            console.error(err);
+        });
+}
+
+function closePicker() {
+    pickerOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+pickerClose.addEventListener('click', closePicker);
+pickerOverlay.addEventListener('click', (e) => {
+    if (e.target === pickerOverlay) closePicker();
+});
+
+async function addExercise(exercise) {
+    closePicker();
+
+    try {
+        const response = await fetch('/api/plan/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: PAGE_DATE,
+                exerciseId: exercise.id,
+                category: pickerCategory
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            // Reload page to show new exercise in correct position with all wiring
+            window.location.reload();
+        } else {
+            console.error('Failed to add exercise:', result.error);
+        }
+    } catch (error) {
+        console.error('Network error adding exercise:', error);
+    }
+}
+
+// Wire up all + buttons
+if (!IS_FUTURE) {
+    document.querySelectorAll('.add-exercise-btn, .add-exercise-btn-large').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openPicker(btn.dataset.category);
+        });
+    });
+}
 
 // Swipe gesture support for day navigation
 let touchStartX = 0;

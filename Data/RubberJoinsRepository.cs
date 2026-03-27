@@ -56,9 +56,19 @@ namespace RubberJoins.Data
                                 Cues NVARCHAR(MAX),
                                 Explanation NVARCHAR(MAX),
                                 Warning NVARCHAR(MAX),
-                                Phases NVARCHAR(50)
+                                Phases NVARCHAR(50),
+                                DefaultRx NVARCHAR(255)
                             )
                         END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                // Add DefaultRx column if missing (upgrade path)
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Exercises' AND COLUMN_NAME='DefaultRx')
+                            ALTER TABLE Exercises ADD DefaultRx NVARCHAR(255)";
                     await command.ExecuteNonQueryAsync();
                 }
 
@@ -257,10 +267,20 @@ namespace RubberJoins.Data
                                 SortOrder INT NOT NULL,
                                 Rx NVARCHAR(255),
                                 AiAdjusted BIT DEFAULT 0,
+                                IsManual BIT DEFAULT 0,
                                 FOREIGN KEY (ProgramId) REFERENCES Programs(Id),
                                 FOREIGN KEY (ExerciseId) REFERENCES Exercises(Id)
                             )
                         END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                // Add IsManual column if missing (upgrade path)
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='UserDailyPlan' AND COLUMN_NAME='IsManual')
+                            ALTER TABLE UserDailyPlan ADD IsManual BIT DEFAULT 0";
                     await command.ExecuteNonQueryAsync();
                 }
 
@@ -288,33 +308,33 @@ namespace RubberJoins.Data
 
         private async Task SeedExercisesAsync(SqlConnection connection)
         {
-            var exercises = new List<(string id, string name, string category, string targets, string description, string cues, string explanation, string warning, string phases)>
+            var exercises = new List<(string id, string name, string category, string targets, string description, string cues, string explanation, string warning, string phases, string defaultRx)>
             {
-                ("hot-tub", "Hot Tub", "warmup_tool", "Full Body", "Warm up in hot water to increase circulation", "2-5 min | No excessive heat", "Heat increases tissue elasticity and blood flow", "Avoid if pregnant or have heart conditions", "1,2"),
-                ("vibration-plate", "Vibration Plate", "warmup_tool", "Full Body", "Stand on vibration plate for neuromuscular activation", "Feet hip-width | Slight knee bend | 30-60 sec", "Vibration activates muscles and improves proprioception", "Not for acute injuries or pregnancy", "1,2"),
-                ("cars-routine", "CARs Routine", "mobility", "All Joints", "Controlled Articular Rotations for joint mobility", "Slow circles | Full range | No momentum", "CARs improve joint health and body awareness", "Move within pain-free range only", "1,2"),
-                ("90-90-hip-switch", "90/90 Hip Switch", "mobility", "Hips", "Switch legs in 90/90 position for hip mobility", "Chest upright | Slow switch | 30 sec each side", "Improves hip external and internal rotation", "Stop if sharp pain occurs", "1,2"),
-                ("shinbox-getup", "Shinbox Get-Up", "mobility", "Hips,Core", "Get up from shinbox position without using hands", "Controlled movement | No hand assist | 5 reps", "Builds hip mobility and core stability", "Requires significant hip mobility", "2"),
-                ("worlds-greatest-stretch", "World's Greatest Stretch", "mobility", "Hips,T-Spine,Ankles", "Dynamic stretch targeting multiple areas", "Lunge | Rotate | Reach | 8-10 reps each side", "Comprehensive dynamic mobility for warm-up", "Avoid with acute injuries", "1,2"),
-                ("deep-squat-hold", "Deep Squat Hold", "mobility", "Hips,Knees,Ankles", "Hold bottom of squat position", "Feet shoulder-width | Upright torso | Hold 30-60 sec", "Improves squat mechanics and ankle mobility", "Use support if needed for balance", "1,2"),
-                ("couch-stretch", "Couch Stretch", "mobility", "Hips,Quads", "Quad stretch on couch or box", "Back knee elevated | Gentle forward lean | 90 sec each", "Improves hip and quad flexibility", "Can be intense; progress gradually", "1,2"),
-                ("wall-ankle-mob", "Wall Ankle Mobilization", "mobility", "Ankles", "Mobilize ankle with wall for dorsiflexion", "Shin against wall | Lean forward | 90 sec each", "Improves ankle dorsiflexion and calf mobility", "Stop if pain in ankle", "1,2"),
-                ("open-book", "Open Book (T-Spine)", "mobility", "T-Spine", "Thoracic spine rotation from side-lying", "Side-lying | Controlled rotation | 10 reps each side", "Improves thoracic rotation and spinal mobility", "Avoid jerky movements", "1,2"),
-                ("dead-hang", "Dead Hang", "mobility", "Shoulders,Spine,Grip", "Hang from bar with full body relaxed", "Full grip | Shoulders engaged | 20-60 sec", "Decompresses spine and improves shoulder mobility", "Build up duration gradually", "1,2"),
-                ("quadruped-rocking", "Quadruped Rocking", "mobility", "Hips,Ankles", "Rock back and forth on hands and knees", "Hands under shoulders | Slow rocks | 20 reps", "Improves hip and ankle mobility", "Keep core engaged", "1,2"),
-                ("hip-flexor-pails-rails", "Hip Flexor PAILs/RAILs", "mobility", "Hips", "Proprioceptive stretching for hip flexors", "Hold position | Contract | Relax | 8-10 reps", "Increases hip flexor mobility and stability", "Requires space and understanding of PAILs/RAILs", "2"),
-                ("90-90-pails-rails", "90/90 PAILs/RAILs", "mobility", "Hips", "Proprioceptive stretching in 90/90 position", "Hold | Contract | Relax | 8-10 reps each side", "Improves hip external rotation", "Advanced technique; build foundation first", "2"),
-                ("ankle-pails-rails", "Ankle PAILs/RAILs", "mobility", "Ankles", "Proprioceptive stretching for ankle mobility", "Hold position | Contract | Relax | 8-10 reps", "Improves ankle dorsiflexion and control", "Requires proprioceptive understanding", "2"),
-                ("goblet-squat", "Goblet Squat (3s Pause)", "strength", "Hips,Knees,Core", "Squat while holding weight with 3-second pause", "Hold weight at chest | Deep squat | Pause at bottom | 8 reps", "Builds squat strength and depth", "Start with light weight", "2"),
-                ("turkish-getup", "Turkish Get-Up", "strength", "Full Body", "Get up from lying to standing while holding weight", "Controlled movement | Full attention | 5 reps each side", "Full body strength and stability", "Complex movement; practice without weight first", "2"),
-                ("cossack-squat", "Cossack Squat", "strength", "Hips,Knees,Ankles", "Shift side to side in wide squat stance", "Wide stance | Shift weight | Touch floor | 8 reps each", "Builds lateral hip and knee strength", "Requires significant mobility", "2"),
-                ("jefferson-curl", "Jefferson Curl", "strength", "Spine,Hamstrings", "Curl spine vertebra by vertebra", "Standing | Slow curl | Articulate spine | 8-10 reps", "Improves spinal flexion and hamstring flexibility", "Go slow to avoid injury", "2"),
-                ("hydro-massager", "Hydro Massager", "recovery_tool", "Full Body", "Use hydro massager for muscle recovery", "Various speeds | Target muscles | 5-10 min", "Increases circulation and aids recovery", "Avoid over-sensitive areas", "1,2"),
-                ("steam-sauna", "Steam Sauna", "recovery_tool", "Full Body", "Relax in steam sauna for recovery", "10-20 min | Stay hydrated | Moderate temperature", "Promotes relaxation and circulation", "Avoid if pregnant or have heart conditions", "1,2"),
-                ("dry-sauna", "Dry Sauna", "recovery_tool", "Full Body", "Relax in dry sauna for muscle recovery", "10-20 min | Stay hydrated | Moderate temperature", "Reduces muscle soreness and promotes recovery", "Stay well hydrated", "1,2"),
-                ("compex-warmup", "Compex — Warmup", "recovery_tool", "Quads,Glutes", "Use Compex muscle stimulator for warm-up", "Warmup setting | 10-15 min | Quads and glutes", "Prepares muscles for training", "Follow device instructions", "1,2"),
-                ("compex-recovery", "Compex — Recovery", "recovery_tool", "Quads,Glutes,Calves", "Use Compex for post-workout recovery", "Recovery setting | 15-20 min | Multiple muscles", "Aids muscle recovery and reduces soreness", "Follow device instructions", "1,2"),
-                ("compression-boots", "Compression Boots", "recovery_tool", "Legs", "Use compression boots for leg recovery", "15-30 min | Moderate compression | Legs only", "Improves circulation and reduces leg soreness", "Start with shorter durations", "1,2")
+                ("hot-tub", "Hot Tub", "warmup_tool", "Full Body", "Warm up in hot water to increase circulation", "2-5 min | No excessive heat", "Heat increases tissue elasticity and blood flow", "Avoid if pregnant or have heart conditions", "1,2", "5 min"),
+                ("vibration-plate", "Vibration Plate", "warmup_tool", "Full Body", "Stand on vibration plate for neuromuscular activation", "Feet hip-width | Slight knee bend | 30-60 sec", "Vibration activates muscles and improves proprioception", "Not for acute injuries or pregnancy", "1,2", "1 min"),
+                ("cars-routine", "CARs Routine", "mobility", "All Joints", "Controlled Articular Rotations for joint mobility", "Slow circles | Full range | No momentum", "CARs improve joint health and body awareness", "Move within pain-free range only", "1,2", "5 min"),
+                ("90-90-hip-switch", "90/90 Hip Switch", "mobility", "Hips", "Switch legs in 90/90 position for hip mobility", "Chest upright | Slow switch | 30 sec each side", "Improves hip external and internal rotation", "Stop if sharp pain occurs", "1,2", "30 sec each"),
+                ("shinbox-getup", "Shinbox Get-Up", "mobility", "Hips,Core", "Get up from shinbox position without using hands", "Controlled movement | No hand assist | 5 reps", "Builds hip mobility and core stability", "Requires significant hip mobility", "2", "5 reps"),
+                ("worlds-greatest-stretch", "World's Greatest Stretch", "mobility", "Hips,T-Spine,Ankles", "Dynamic stretch targeting multiple areas", "Lunge | Rotate | Reach | 8-10 reps each side", "Comprehensive dynamic mobility for warm-up", "Avoid with acute injuries", "1,2", "8 reps each"),
+                ("deep-squat-hold", "Deep Squat Hold", "mobility", "Hips,Knees,Ankles", "Hold bottom of squat position", "Feet shoulder-width | Upright torso | Hold 30-60 sec", "Improves squat mechanics and ankle mobility", "Use support if needed for balance", "1,2", "60 sec"),
+                ("couch-stretch", "Couch Stretch", "mobility", "Hips,Quads", "Quad stretch on couch or box", "Back knee elevated | Gentle forward lean | 90 sec each", "Improves hip and quad flexibility", "Can be intense; progress gradually", "1,2", "90 sec each"),
+                ("wall-ankle-mob", "Wall Ankle Mobilization", "mobility", "Ankles", "Mobilize ankle with wall for dorsiflexion", "Shin against wall | Lean forward | 90 sec each", "Improves ankle dorsiflexion and calf mobility", "Stop if pain in ankle", "1,2", "90 sec each"),
+                ("open-book", "Open Book (T-Spine)", "mobility", "T-Spine", "Thoracic spine rotation from side-lying", "Side-lying | Controlled rotation | 10 reps each side", "Improves thoracic rotation and spinal mobility", "Avoid jerky movements", "1,2", "10 reps each"),
+                ("dead-hang", "Dead Hang", "mobility", "Shoulders,Spine,Grip", "Hang from bar with full body relaxed", "Full grip | Shoulders engaged | 20-60 sec", "Decompresses spine and improves shoulder mobility", "Build up duration gradually", "1,2", "30 sec"),
+                ("quadruped-rocking", "Quadruped Rocking", "mobility", "Hips,Ankles", "Rock back and forth on hands and knees", "Hands under shoulders | Slow rocks | 20 reps", "Improves hip and ankle mobility", "Keep core engaged", "1,2", "20 reps"),
+                ("hip-flexor-pails-rails", "Hip Flexor PAILs/RAILs", "mobility", "Hips", "Proprioceptive stretching for hip flexors", "Hold position | Contract | Relax | 8-10 reps", "Increases hip flexor mobility and stability", "Requires space and understanding of PAILs/RAILs", "2", "8 reps"),
+                ("90-90-pails-rails", "90/90 PAILs/RAILs", "mobility", "Hips", "Proprioceptive stretching in 90/90 position", "Hold | Contract | Relax | 8-10 reps each side", "Improves hip external rotation", "Advanced technique; build foundation first", "2", "8 reps each"),
+                ("ankle-pails-rails", "Ankle PAILs/RAILs", "mobility", "Ankles", "Proprioceptive stretching for ankle mobility", "Hold position | Contract | Relax | 8-10 reps", "Improves ankle dorsiflexion and control", "Requires proprioceptive understanding", "2", "8 reps"),
+                ("goblet-squat", "Goblet Squat (3s Pause)", "strength", "Hips,Knees,Core", "Squat while holding weight with 3-second pause", "Hold weight at chest | Deep squat | Pause at bottom | 8 reps", "Builds squat strength and depth", "Start with light weight", "2", "8 reps"),
+                ("turkish-getup", "Turkish Get-Up", "strength", "Full Body", "Get up from lying to standing while holding weight", "Controlled movement | Full attention | 5 reps each side", "Full body strength and stability", "Complex movement; practice without weight first", "2", "5 reps each"),
+                ("cossack-squat", "Cossack Squat", "strength", "Hips,Knees,Ankles", "Shift side to side in wide squat stance", "Wide stance | Shift weight | Touch floor | 8 reps each", "Builds lateral hip and knee strength", "Requires significant mobility", "2", "8 reps each"),
+                ("jefferson-curl", "Jefferson Curl", "strength", "Spine,Hamstrings", "Curl spine vertebra by vertebra", "Standing | Slow curl | Articulate spine | 8-10 reps", "Improves spinal flexion and hamstring flexibility", "Go slow to avoid injury", "2", "8 reps"),
+                ("hydro-massager", "Hydro Massager", "recovery_tool", "Full Body", "Use hydro massager for muscle recovery", "Various speeds | Target muscles | 5-10 min", "Increases circulation and aids recovery", "Avoid over-sensitive areas", "1,2", "5 min"),
+                ("steam-sauna", "Steam Sauna", "recovery_tool", "Full Body", "Relax in steam sauna for recovery", "10-20 min | Stay hydrated | Moderate temperature", "Promotes relaxation and circulation", "Avoid if pregnant or have heart conditions", "1,2", "15 min"),
+                ("dry-sauna", "Dry Sauna", "recovery_tool", "Full Body", "Relax in dry sauna for muscle recovery", "10-20 min | Stay hydrated | Moderate temperature", "Reduces muscle soreness and promotes recovery", "Stay well hydrated", "1,2", "15 min"),
+                ("compex-warmup", "Compex — Warmup", "recovery_tool", "Quads,Glutes", "Use Compex muscle stimulator for warm-up", "Warmup setting | 10-15 min | Quads and glutes", "Prepares muscles for training", "Follow device instructions", "1,2", "10 min"),
+                ("compex-recovery", "Compex — Recovery", "recovery_tool", "Quads,Glutes,Calves", "Use Compex for post-workout recovery", "Recovery setting | 15-20 min | Multiple muscles", "Aids muscle recovery and reduces soreness", "Follow device instructions", "1,2", "15 min"),
+                ("compression-boots", "Compression Boots", "recovery_tool", "Legs", "Use compression boots for leg recovery", "15-30 min | Moderate compression | Legs only", "Improves circulation and reduces leg soreness", "Start with shorter durations", "1,2", "20 min")
             };
 
             using (var command = connection.CreateCommand())
@@ -322,12 +342,14 @@ namespace RubberJoins.Data
                 command.CommandText = @"
                     MERGE INTO Exercises AS target
                     USING (VALUES
-                        (@id, @name, @category, @targets, @description, @cues, @explanation, @warning, @phases)
-                    ) AS source (Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases)
+                        (@id, @name, @category, @targets, @description, @cues, @explanation, @warning, @phases, @defaultRx)
+                    ) AS source (Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases, DefaultRx)
                     ON target.Id = source.Id
+                    WHEN MATCHED THEN
+                        UPDATE SET DefaultRx = source.DefaultRx
                     WHEN NOT MATCHED THEN
-                        INSERT (Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases)
-                        VALUES (source.Id, source.Name, source.Category, source.Targets, source.Description, source.Cues, source.Explanation, source.Warning, source.Phases);";
+                        INSERT (Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases, DefaultRx)
+                        VALUES (source.Id, source.Name, source.Category, source.Targets, source.Description, source.Cues, source.Explanation, source.Warning, source.Phases, source.DefaultRx);";
 
                 foreach (var exercise in exercises)
                 {
@@ -341,6 +363,7 @@ namespace RubberJoins.Data
                     command.Parameters.AddWithValue("@explanation", exercise.explanation ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@warning", exercise.warning ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@phases", exercise.phases);
+                    command.Parameters.AddWithValue("@defaultRx", exercise.defaultRx ?? (object)DBNull.Value);
 
                     await command.ExecuteNonQueryAsync();
                 }
@@ -630,7 +653,7 @@ namespace RubberJoins.Data
 
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = "SELECT Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases FROM Exercises ORDER BY Name";
+                    command.CommandText = "SELECT Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases, DefaultRx FROM Exercises ORDER BY Name";
 
                     using (var reader = await command.ExecuteReaderAsync())
                     {
@@ -646,7 +669,8 @@ namespace RubberJoins.Data
                                 Cues = reader.IsDBNull(5) ? null : reader.GetString(5),
                                 Explanation = reader.IsDBNull(6) ? null : reader.GetString(6),
                                 Warning = reader.IsDBNull(7) ? null : reader.GetString(7),
-                                Phases = reader.GetString(8)
+                                Phases = reader.GetString(8),
+                                DefaultRx = reader.IsDBNull(9) ? null : reader.GetString(9)
                             });
                         }
                     }
@@ -1447,6 +1471,109 @@ namespace RubberJoins.Data
                 });
             }
             return entries;
+        }
+
+        /// <summary>
+        /// Adds a manually added exercise to the user's daily plan.
+        /// Returns the new entry's Id, or -1 if the exercise is already in the plan for that date.
+        /// </summary>
+        public async Task<int> AddManualPlanEntryAsync(string userId, string date, string exerciseId, string category)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Check if exercise already exists in plan for this date
+            using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.CommandText = "SELECT COUNT(*) FROM UserDailyPlan WHERE UserId = @userId AND Date = @date AND ExerciseId = @exerciseId";
+                checkCmd.Parameters.AddWithValue("@userId", userId);
+                checkCmd.Parameters.AddWithValue("@date", date);
+                checkCmd.Parameters.AddWithValue("@exerciseId", exerciseId);
+                var count = (int)await checkCmd.ExecuteScalarAsync();
+                if (count > 0) return -1; // Already exists
+            }
+
+            // Get the active enrollment to find ProgramId and DayType
+            var enrollment = await GetActiveEnrollmentAsync(userId);
+            if (enrollment == null) return -1;
+
+            // Get DayType from existing plan entries for this date, or default to "gym"
+            string dayType = "gym";
+            using (var dtCmd = connection.CreateCommand())
+            {
+                dtCmd.CommandText = "SELECT TOP 1 DayType FROM UserDailyPlan WHERE UserId = @userId AND Date = @date";
+                dtCmd.Parameters.AddWithValue("@userId", userId);
+                dtCmd.Parameters.AddWithValue("@date", date);
+                var result = await dtCmd.ExecuteScalarAsync();
+                if (result != null) dayType = result.ToString()!;
+            }
+
+            // Get the exercise's DefaultRx
+            string? defaultRx = null;
+            using (var rxCmd = connection.CreateCommand())
+            {
+                rxCmd.CommandText = "SELECT DefaultRx FROM Exercises WHERE Id = @id";
+                rxCmd.Parameters.AddWithValue("@id", exerciseId);
+                var result = await rxCmd.ExecuteScalarAsync();
+                if (result != null && result != DBNull.Value) defaultRx = result.ToString();
+            }
+
+            // Get max sort order for this date
+            int maxSort = 0;
+            using (var sortCmd = connection.CreateCommand())
+            {
+                sortCmd.CommandText = "SELECT ISNULL(MAX(SortOrder), 0) FROM UserDailyPlan WHERE UserId = @userId AND Date = @date";
+                sortCmd.Parameters.AddWithValue("@userId", userId);
+                sortCmd.Parameters.AddWithValue("@date", date);
+                maxSort = (int)await sortCmd.ExecuteScalarAsync();
+            }
+
+            // Insert the manual entry
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO UserDailyPlan (UserId, ProgramId, Date, DayType, ExerciseId, Category, SortOrder, Rx, AiAdjusted, IsManual)
+                OUTPUT INSERTED.Id
+                VALUES (@userId, @programId, @date, @dayType, @exerciseId, @category, @sortOrder, @rx, 0, 1)";
+            cmd.Parameters.AddWithValue("@userId", userId);
+            cmd.Parameters.AddWithValue("@programId", enrollment.ProgramId);
+            cmd.Parameters.AddWithValue("@date", date);
+            cmd.Parameters.AddWithValue("@dayType", dayType);
+            cmd.Parameters.AddWithValue("@exerciseId", exerciseId);
+            cmd.Parameters.AddWithValue("@category", category);
+            cmd.Parameters.AddWithValue("@sortOrder", maxSort + 1);
+            cmd.Parameters.AddWithValue("@rx", (object?)defaultRx ?? DBNull.Value);
+            return (int)await cmd.ExecuteScalarAsync();
+        }
+
+        /// <summary>
+        /// Gets all exercises for a given category (for the add-exercise picker).
+        /// </summary>
+        public async Task<List<Exercise>> GetExercisesByCategoryAsync(string category)
+        {
+            var exercises = new List<Exercise>();
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases, DefaultRx FROM Exercises WHERE Category = @category ORDER BY Name";
+            command.Parameters.AddWithValue("@category", category);
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                exercises.Add(new Exercise
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1),
+                    Category = reader.GetString(2),
+                    Targets = reader.GetString(3),
+                    Description = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    Cues = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    Explanation = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    Warning = reader.IsDBNull(7) ? null : reader.GetString(7),
+                    Phases = reader.GetString(8),
+                    DefaultRx = reader.IsDBNull(9) ? null : reader.GetString(9)
+                });
+            }
+            return exercises;
         }
     }
 }

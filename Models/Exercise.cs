@@ -11,6 +11,7 @@ public class Exercise
     public string Explanation { get; set; } = "";
     public string? Warning { get; set; }
     public string Phases { get; set; } = "1,2";  // comma-separated phase numbers
+    public string? DefaultRx { get; set; }         // e.g., "5 min", "30 sec each"
 }
 
 public class AppUser
@@ -176,4 +177,5 @@ public class UserDailyPlanEntry
     public int SortOrder { get; set; }
     public string? Rx { get; set; }
     public bool AiAdjusted { get; set; }
+    public bool IsManual { get; set; }
 }

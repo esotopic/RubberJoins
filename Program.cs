@@ -97,6 +97,63 @@ app.MapPost("/api/check", async (HttpContext context, RubberJoinsRepository repo
     }
 });
 
+// ── Add exercise to daily plan ──
+app.MapPost("/api/plan/add", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    try
+    {
+        string userId = context.User.Identity?.Name ?? "default";
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(context.Request.Body);
+        var root = doc.RootElement;
+
+        string date = root.GetProperty("date").GetString() ?? "";
+        string exerciseId = root.GetProperty("exerciseId").GetString() ?? "";
+        string category = root.GetProperty("category").GetString() ?? "";
+
+        if (string.IsNullOrEmpty(date) || string.IsNullOrEmpty(exerciseId) || string.IsNullOrEmpty(category))
+            return Results.Json(new { success = false, error = "Missing required fields" }, statusCode: 400);
+
+        int newId = await repository.AddManualPlanEntryAsync(userId, date, exerciseId, category);
+        if (newId == -1)
+            return Results.Json(new { success = false, error = "Exercise already in plan or no enrollment" }, statusCode: 409);
+
+        return Results.Json(new { success = true, id = newId });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
+// ── Get exercises by category (for picker) ──
+app.MapGet("/api/exercises", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    try
+    {
+        string category = context.Request.Query["category"].ToString();
+        if (string.IsNullOrEmpty(category))
+            return Results.Json(new { success = false, error = "Missing category" }, statusCode: 400);
+
+        var exercises = await repository.GetExercisesByCategoryAsync(category);
+        return Results.Json(exercises.Select(e => new {
+            id = e.Id,
+            name = e.Name,
+            targets = e.Targets,
+            defaultRx = e.DefaultRx ?? ""
+        }));
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
 app.MapGet("/api/debug", async (HttpContext context, RubberJoinsRepository repository) =>
 {
     if (context.User.Identity?.IsAuthenticated != true)
