@@ -141,7 +141,7 @@ namespace RubberJoins.Pages
             }
             catch (Exception ex)
             {
-                ViewModel.ErrorMessage = "Unable to connect to the database. Some features may be unavailable.";
+                ViewModel.ErrorMessage = $"DB Error: {ex.GetType().Name}: {ex.Message}";
             }
         }
 
