@@ -7,6 +7,7 @@ using System.Text.Json;
 namespace RubberJoins.Pages
 {
     [Authorize]
+    [IgnoreAntiforgeryToken]
     public class ApiModel : PageModel
     {
         private readonly RubberJoinsRepository _repository;

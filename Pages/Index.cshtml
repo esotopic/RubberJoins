@@ -3,45 +3,100 @@
 
 @{
     ViewData["Title"] = "Today";
+
+    // Calculate category progress for bars
+    var mobilitySteps = Model.ViewModel.Steps.Where(s => s.Exercise.Category == "mobility").ToList();
+    var recoverySteps = Model.ViewModel.Steps.Where(s => s.Exercise.Category == "recovery_tool").ToList();
+    var warmupSteps = Model.ViewModel.Steps.Where(s => s.Exercise.Category == "warmup_tool").ToList();
+    var strengthSteps = Model.ViewModel.Steps.Where(s => s.Exercise.Category == "strength").ToList();
+
+    int mobilityDone = mobilitySteps.Count(s => s.Checked);
+    int mobilityTotal = mobilitySteps.Count;
+    int recoveryDone = recoverySteps.Count(s => s.Checked);
+    int recoveryTotal = recoverySteps.Count;
+    int suppsDone = Model.ViewModel.Supplements.Count(s => s.Checked);
+    int suppsTotal = Model.ViewModel.Supplements.Count;
+
+    // Weekly calendar data
+    var today = DateTime.UtcNow;
+    var monday = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+    if (today.DayOfWeek == DayOfWeek.Sunday) monday = monday.AddDays(-7);
 }
 
 <div class="page-content">
-    <header class="page-header">
-        <div class="logo">RUBBERJOINTS</div>
-        <div class="badge">Week @Model.ViewModel.Week of 12 · Phase @Model.ViewModel.Phase: @GetPhaseLabel(Model.ViewModel.Phase)</div>
-    </header>
-
     @if (!string.IsNullOrEmpty(Model.ViewModel.ErrorMessage))
     {
         <div class="error-banner">@Model.ViewModel.ErrorMessage</div>
     }
 
-    <section class="hero-section">
-        <h1 class="hero-day">@Model.ViewModel.DayName</h1>
-        <p class="hero-type">@Model.ViewModel.SessionType</p>
-        <p class="hero-time">~@Model.ViewModel.EstMinutes mins</p>
-        <p class="hero-location">@GetLocationEmoji(Model.ViewModel.DayKey) @GetLocationName(Model.ViewModel.DayKey)</p>
+    <!-- Today's Activity Summary -->
+    <section class="activity-summary">
+        <h2 class="activity-title">Today's Activity</h2>
+        <p class="activity-subtitle">@Model.ViewModel.DayName · @Model.ViewModel.SessionType</p>
+
+        <div class="progress-bars">
+            @if (mobilityTotal > 0)
+            {
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-dot" style="background:#34c759;"></span>
+                        <span>Mobility</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="bar-mobility" data-category="mobility" style="width:@(mobilityTotal > 0 ? (mobilityDone * 100 / mobilityTotal) : 0)%;background:#34c759;"></div>
+                    </div>
+                    <span class="progress-count" id="count-mobility">@mobilityDone/@mobilityTotal</span>
+                </div>
+            }
+            @if (recoveryTotal > 0)
+            {
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-dot" style="background:#4a6cf7;"></span>
+                        <span>Recovery</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="bar-recovery" data-category="recovery_tool" style="width:@(recoveryTotal > 0 ? (recoveryDone * 100 / recoveryTotal) : 0)%;background:#4a6cf7;"></div>
+                    </div>
+                    <span class="progress-count" id="count-recovery">@recoveryDone/@recoveryTotal</span>
+                </div>
+            }
+            @if (suppsTotal > 0)
+            {
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-dot" style="background:#ffcc00;"></span>
+                        <span>Vitamins</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="bar-supplements" style="width:@(suppsTotal > 0 ? (suppsDone * 100 / suppsTotal) : 0)%;background:#ffcc00;"></div>
+                    </div>
+                    <span class="progress-count" id="count-supplements">@suppsDone/@suppsTotal</span>
+                </div>
+            }
+        </div>
     </section>
 
-    <section class="legend-section">
-        <div class="legend-item">
-            <span class="legend-dot" style="background-color: #45c4a0;"></span>
-            <span>Mobility</span>
-        </div>
-        <div class="legend-item">
-            <span class="legend-dot" style="background-color: #9b59b6;"></span>
-            <span>Strength</span>
-        </div>
-        <div class="legend-item">
-            <span class="legend-dot" style="background-color: #ff6b35;"></span>
-            <span>Warm-up</span>
-        </div>
-        <div class="legend-item">
-            <span class="legend-dot" style="background-color: #4a90e2;"></span>
-            <span>Recovery</span>
-        </div>
+    <!-- Weekly Calendar -->
+    <section class="week-calendar">
+        @for (int i = 0; i < 7; i++)
+        {
+            var day = monday.AddDays(i);
+            var isToday = day.Date == today.Date;
+            var isPast = day.Date < today.Date;
+            var dayLabel = day.ToString("ddd").Substring(0, 3).ToUpper();
+            var dayNum = day.Day;
+            var dayType = GetDayTypeForDate(day.DayOfWeek);
+            var dotColor = GetDayDotColor(dayType);
+            <div class="week-day @(isToday ? "today" : "") @(isPast ? "past" : "")">
+                <span class="week-day-label">@dayLabel</span>
+                <span class="week-day-num">@dayNum</span>
+                <span class="week-day-dot" style="background:@dotColor;"></span>
+            </div>
+        }
     </section>
 
+    <!-- Exercise Groups -->
     @if (Model.ViewModel.Steps.Any())
     {
         var grouped = Model.ViewModel.Steps
@@ -50,14 +105,15 @@
 
         foreach (var group in grouped)
         {
-            <div class="session-group">
+            <div class="session-group" data-category="@group.Key">
                 <div class="session-group-header">
                     <span class="dot" style="background-color: @GetCategoryColor(group.Key);"></span>
                     <span>@GetSectionLabel(group.Key)</span>
+                    <span class="group-progress">@group.Count(s => s.Checked)/@group.Count()</span>
                 </div>
                 @foreach (var step in group)
                 {
-                    <div class="check-item @(step.Checked ? "done" : "")" data-step-id="@step.Index">
+                    <div class="check-item @(step.Checked ? "done" : "")" data-step-id="@step.Index" data-category="@step.Exercise.Category">
                         <div class="check-box" data-step-id="@step.Index" data-exercise-id="@step.Exercise.Id"></div>
                         <div class="check-info">
                             <span class="check-name">@step.Exercise.Name</span>
@@ -103,10 +159,8 @@
                         <h3 class="group-title">@GetTimeGroupLabel(group.Key)</h3>
                         @foreach (var item in group)
                         {
-                            <div class="supplement-item">
-                                <input type="checkbox" class="supplement-checkbox"
-                                       data-supplement-id="@item.Supplement.Id"
-                                       @(item.Checked ? "checked" : "")>
+                            <div class="supplement-item @(item.Checked ? "taken" : "")" data-supplement-id="@item.Supplement.Id">
+                                <div class="supplement-check"></div>
                                 <span class="supplement-name">@item.Supplement.Name</span>
                                 <span class="supplement-dose">@item.Supplement.Dose</span>
                             </div>
@@ -121,15 +175,69 @@
 </div>
 
 <script>
+// Category totals for progress bars
+const categoryTotals = {
+    mobility: { total: @mobilityTotal, done: @mobilityDone },
+    recovery_tool: { total: @recoveryTotal, done: @recoveryDone },
+    supplements: { total: @suppsTotal, done: @suppsDone }
+};
+
+function updateProgressBars() {
+    // Update mobility bar
+    const mobBar = document.getElementById('bar-mobility');
+    const mobCount = document.getElementById('count-mobility');
+    if (mobBar && mobCount) {
+        const pct = categoryTotals.mobility.total > 0 ? (categoryTotals.mobility.done * 100 / categoryTotals.mobility.total) : 0;
+        mobBar.style.width = pct + '%';
+        mobCount.textContent = categoryTotals.mobility.done + '/' + categoryTotals.mobility.total;
+    }
+
+    // Update recovery bar
+    const recBar = document.getElementById('bar-recovery');
+    const recCount = document.getElementById('count-recovery');
+    if (recBar && recCount) {
+        const pct = categoryTotals.recovery_tool.total > 0 ? (categoryTotals.recovery_tool.done * 100 / categoryTotals.recovery_tool.total) : 0;
+        recBar.style.width = pct + '%';
+        recCount.textContent = categoryTotals.recovery_tool.done + '/' + categoryTotals.recovery_tool.total;
+    }
+
+    // Update supplements bar
+    const suppBar = document.getElementById('bar-supplements');
+    const suppCount = document.getElementById('count-supplements');
+    if (suppBar && suppCount) {
+        const pct = categoryTotals.supplements.total > 0 ? (categoryTotals.supplements.done * 100 / categoryTotals.supplements.total) : 0;
+        suppBar.style.width = pct + '%';
+        suppCount.textContent = categoryTotals.supplements.done + '/' + categoryTotals.supplements.total;
+    }
+
+    // Update group headers
+    document.querySelectorAll('.session-group').forEach(group => {
+        const cat = group.dataset.category;
+        const done = group.querySelectorAll('.check-item.done').length;
+        const total = group.querySelectorAll('.check-item').length;
+        const progEl = group.querySelector('.group-progress');
+        if (progEl) progEl.textContent = done + '/' + total;
+    });
+}
+
 // Session step checkboxes
 document.querySelectorAll('.check-box[data-step-id]').forEach(box => {
     box.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const item = box.closest('.check-item');
         const stepId = box.dataset.stepId;
         const exerciseId = box.dataset.exerciseId;
+        const category = item.dataset.category;
         const wasDone = item.classList.contains('done');
 
+        // Optimistic UI update
         item.classList.toggle('done');
+
+        // Update category count
+        if (categoryTotals[category]) {
+            categoryTotals[category].done += wasDone ? -1 : 1;
+        }
+        updateProgressBars();
 
         try {
             const response = await fetch('/Api?handler=check', {
@@ -139,23 +247,39 @@ document.querySelectorAll('.check-box[data-step-id]').forEach(box => {
                     itemType: 'step',
                     itemId: stepId,
                     exerciseId: exerciseId,
-                    stepIndex: stepId
+                    stepIndex: parseInt(stepId)
                 })
             });
             if (!response.ok) {
+                // Revert on failure
                 item.classList.toggle('done');
+                if (categoryTotals[category]) {
+                    categoryTotals[category].done += wasDone ? 1 : -1;
+                }
+                updateProgressBars();
             }
         } catch (error) {
             item.classList.toggle('done');
+            if (categoryTotals[category]) {
+                categoryTotals[category].done += wasDone ? 1 : -1;
+            }
+            updateProgressBars();
             console.error('Error:', error);
         }
     });
 });
 
-// Supplement checkboxes
-document.querySelectorAll('.supplement-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', async (e) => {
-        const supplementId = e.target.dataset.supplementId;
+// Supplement checkboxes - click on the whole row
+document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item => {
+    item.addEventListener('click', async (e) => {
+        const supplementId = item.dataset.supplementId;
+        const wasTaken = item.classList.contains('taken');
+
+        // Optimistic UI
+        item.classList.toggle('taken');
+        categoryTotals.supplements.done += wasTaken ? -1 : 1;
+        updateProgressBars();
+
         try {
             const response = await fetch('/Api?handler=check', {
                 method: 'POST',
@@ -167,10 +291,14 @@ document.querySelectorAll('.supplement-checkbox').forEach(checkbox => {
                 })
             });
             if (!response.ok) {
-                e.target.checked = !e.target.checked;
+                item.classList.toggle('taken');
+                categoryTotals.supplements.done += wasTaken ? 1 : -1;
+                updateProgressBars();
             }
         } catch (error) {
-            e.target.checked = !e.target.checked;
+            item.classList.toggle('taken');
+            categoryTotals.supplements.done += wasTaken ? 1 : -1;
+            updateProgressBars();
             console.error('Error:', error);
         }
     });
@@ -179,6 +307,7 @@ document.querySelectorAll('.supplement-checkbox').forEach(checkbox => {
 // Tap exercise name to expand detail
 document.querySelectorAll('.check-info').forEach(info => {
     info.addEventListener('click', (e) => {
+        e.stopPropagation();
         const item = info.closest('.check-item');
         const stepId = item.dataset.stepId;
         const detail = document.querySelector(`.detail[data-detail-for="${stepId}"]`);
@@ -190,37 +319,30 @@ document.querySelectorAll('.check-info').forEach(info => {
 </script>
 
 @functions {
-    private string GetPhaseLabel(int phase)
+    private string GetDayTypeForDate(DayOfWeek dayOfWeek)
     {
-        return phase switch
+        return dayOfWeek switch
         {
-            1 => "Foundation",
-            2 => "Strength",
-            _ => "Unknown"
+            DayOfWeek.Monday => "gym",
+            DayOfWeek.Tuesday => "home",
+            DayOfWeek.Wednesday => "gym",
+            DayOfWeek.Thursday => "home",
+            DayOfWeek.Friday => "gym",
+            DayOfWeek.Saturday => "recovery",
+            DayOfWeek.Sunday => "rest",
+            _ => "rest"
         };
     }
 
-    private string GetLocationEmoji(string dayKey)
+    private string GetDayDotColor(string dayType)
     {
-        return dayKey switch
+        return dayType switch
         {
-            "gym" => "🏋️",
-            "home" => "🏠",
-            "recovery" => "🏠",
-            "rest" => "🛏️",
-            _ => "📍"
-        };
-    }
-
-    private string GetLocationName(string dayKey)
-    {
-        return dayKey switch
-        {
-            "gym" => "Gym",
-            "home" => "Home",
-            "recovery" => "Home",
-            "rest" => "Rest",
-            _ => "Unknown"
+            "gym" => "#34c759",
+            "home" => "#4a6cf7",
+            "recovery" => "#af52de",
+            "rest" => "#d1d1d6",
+            _ => "#d1d1d6"
         };
     }
 
@@ -228,11 +350,11 @@ document.querySelectorAll('.check-info').forEach(info => {
     {
         return category switch
         {
-            "mobility" => "#45c4a0",
-            "strength" => "#9b59b6",
-            "warmup_tool" => "#ff6b35",
-            "recovery_tool" => "#4a90e2",
-            _ => "#7b9aff"
+            "mobility" => "#34c759",
+            "strength" => "#af52de",
+            "warmup_tool" => "#ff9500",
+            "recovery_tool" => "#4a6cf7",
+            _ => "#4a6cf7"
         };
     }
 
