@@ -24,9 +24,16 @@ namespace RubberJoins.Pages
 
             try
             {
-                // Get user settings for phase calculation
-                var settings = await _repository.GetUserSettingsAsync(userId);
-                var phaseInfo = CalculatePhaseAndWeek(settings?.StartDate);
+                // Get active enrollment for week/phase calculation
+                var enrollment = await _repository.GetActiveEnrollmentAsync(userId);
+                int week = 1;
+                int phase = 1;
+                if (enrollment != null && DateTime.TryParse(enrollment.StartDate, out var enrollStart))
+                {
+                    int daysSince = (DateTime.UtcNow - enrollStart).Days;
+                    week = Math.Max(1, daysSince / 7 + 1);
+                    phase = week <= 2 ? 1 : 2;
+                }
 
                 // Get session logs for stats
                 var allSessionLogs = await _repository.GetSessionLogsAsync(userId);
@@ -40,16 +47,15 @@ namespace RubberJoins.Pages
                 // Total sessions
                 var sessionsTotal = allSessionLogs.Count;
 
-                // Today's steps — use live daily checks
+                // Today's steps — use UserDailyPlan instead of SessionSteps
                 var todayChecks = await _repository.GetDailyChecksAsync(userId, todayDate);
-                var dayType = GetDayType(DateTime.UtcNow.DayOfWeek);
-                var todaySessionSteps = await _repository.GetSessionStepsAsync(dayType);
-                var settings2 = settings; // reuse
-                var disabledTools = (settings2?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
-                var phaseForFilter = phaseInfo.phase;
-                var filteredTodaySteps = todaySessionSteps.Where(s => (s.PhaseOnly == null || s.PhaseOnly == phaseForFilter) && !disabledTools.Contains(s.ExerciseId)).ToList();
+                var planEntries = await _repository.GetUserDailyPlanAsync(userId, todayDate);
+                var settings = await _repository.GetUserSettingsAsync(userId);
+                var disabledTools = (settings?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+                var filteredEntries = planEntries.Where(e => !disabledTools.Contains(e.ExerciseId)).ToList();
+
                 int todayStepsDone = todayChecks.Count(c => c.ItemType == "step" && c.Checked);
-                int todayStepsTotal = filteredTodaySteps.Count;
+                int todayStepsTotal = filteredEntries.Count;
 
                 // Today's supplements
                 var allSupplements = await _repository.GetSupplementsAsync();
@@ -65,8 +71,8 @@ namespace RubberJoins.Pages
 
                 ViewModel = new ProgressViewModel
                 {
-                    Week = phaseInfo.week,
-                    Phase = phaseInfo.phase,
+                    Week = week,
+                    Phase = phase,
                     SessionsThisWeek = sessionsThisWeek,
                     SessionsTotal = sessionsTotal,
                     TodayStepsDone = todayStepsDone,
@@ -81,38 +87,6 @@ namespace RubberJoins.Pages
             {
                 ViewModel.ErrorMessage = "Unable to connect to the database. Progress data may be unavailable.";
             }
-        }
-
-        private string GetDayType(DayOfWeek dayOfWeek)
-        {
-            return dayOfWeek switch
-            {
-                DayOfWeek.Monday => "gym",
-                DayOfWeek.Tuesday => "home",
-                DayOfWeek.Wednesday => "gym",
-                DayOfWeek.Thursday => "home",
-                DayOfWeek.Friday => "gym",
-                DayOfWeek.Saturday => "recovery",
-                DayOfWeek.Sunday => "rest",
-                _ => "rest"
-            };
-        }
-
-        private (int week, int phase) CalculatePhaseAndWeek(string? startDateStr)
-        {
-            if (string.IsNullOrEmpty(startDateStr) || !DateTime.TryParse(startDateStr, out var startDate))
-            {
-                return (1, 1);
-            }
-
-            var today = DateTime.UtcNow;
-            int daysSinceStart = (today - startDate).Days;
-
-            // 12-week program, 6 weeks per phase
-            int week = Math.Min(daysSinceStart / 7 + 1, 12);
-            int phase = week <= 6 ? 1 : 2;
-
-            return (week, phase);
         }
     }
 }

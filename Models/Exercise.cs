@@ -122,3 +122,49 @@ public class ProgressViewModel
     public bool TodayLogged { get; set; }
     public string? ErrorMessage { get; set; }
 }
+
+// ── Program / Enrollment / Daily Plan models ──
+
+public class Program
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public int DurationDays { get; set; }
+    public string Description { get; set; } = "";
+}
+
+public class ProgramTemplate
+{
+    public int Id { get; set; }
+    public int ProgramId { get; set; }
+    public int DayNumber { get; set; }          // 1-28 for a 4-week program
+    public string DayType { get; set; } = "";   // gym, home, recovery, rest
+    public string ExerciseId { get; set; } = "";
+    public string Category { get; set; } = "";
+    public int SortOrder { get; set; }
+    public string? Rx { get; set; }
+}
+
+public class UserEnrollment
+{
+    public int Id { get; set; }
+    public string UserId { get; set; } = "";
+    public int ProgramId { get; set; }
+    public string StartDate { get; set; } = "";     // yyyy-MM-dd
+    public string Status { get; set; } = "active";  // active, completed, paused
+    public string? ProgramName { get; set; }         // joined from Programs
+}
+
+public class UserDailyPlanEntry
+{
+    public int Id { get; set; }
+    public string UserId { get; set; } = "";
+    public int ProgramId { get; set; }
+    public string Date { get; set; } = "";          // yyyy-MM-dd
+    public string DayType { get; set; } = "";       // gym, home, recovery, rest
+    public string ExerciseId { get; set; } = "";
+    public string Category { get; set; } = "";
+    public int SortOrder { get; set; }
+    public string? Rx { get; set; }
+    public bool AiAdjusted { get; set; }
+}

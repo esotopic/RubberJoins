@@ -184,6 +184,86 @@ namespace RubberJoins.Data
                     await command.ExecuteNonQueryAsync();
                 }
 
+                // Create Programs table
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Programs')
+                        BEGIN
+                            CREATE TABLE Programs (
+                                Id INT IDENTITY(1,1) PRIMARY KEY,
+                                Name NVARCHAR(255) NOT NULL,
+                                DurationDays INT NOT NULL,
+                                Description NVARCHAR(MAX)
+                            )
+                        END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                // Create ProgramTemplate table
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ProgramTemplate')
+                        BEGIN
+                            CREATE TABLE ProgramTemplate (
+                                Id INT IDENTITY(1,1) PRIMARY KEY,
+                                ProgramId INT NOT NULL,
+                                DayNumber INT NOT NULL,
+                                DayType NVARCHAR(50) NOT NULL,
+                                ExerciseId NVARCHAR(50) NOT NULL,
+                                Category NVARCHAR(50) NOT NULL,
+                                SortOrder INT NOT NULL,
+                                Rx NVARCHAR(255),
+                                FOREIGN KEY (ProgramId) REFERENCES Programs(Id),
+                                FOREIGN KEY (ExerciseId) REFERENCES Exercises(Id)
+                            )
+                        END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                // Create UserEnrollments table
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserEnrollments')
+                        BEGIN
+                            CREATE TABLE UserEnrollments (
+                                Id INT IDENTITY(1,1) PRIMARY KEY,
+                                UserId NVARCHAR(100) NOT NULL,
+                                ProgramId INT NOT NULL,
+                                StartDate NVARCHAR(10) NOT NULL,
+                                Status NVARCHAR(20) NOT NULL DEFAULT 'active',
+                                FOREIGN KEY (ProgramId) REFERENCES Programs(Id)
+                            )
+                        END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                // Create UserDailyPlan table
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserDailyPlan')
+                        BEGIN
+                            CREATE TABLE UserDailyPlan (
+                                Id INT IDENTITY(1,1) PRIMARY KEY,
+                                UserId NVARCHAR(100) NOT NULL,
+                                ProgramId INT NOT NULL,
+                                Date NVARCHAR(10) NOT NULL,
+                                DayType NVARCHAR(50) NOT NULL,
+                                ExerciseId NVARCHAR(50) NOT NULL,
+                                Category NVARCHAR(50) NOT NULL,
+                                SortOrder INT NOT NULL,
+                                Rx NVARCHAR(255),
+                                AiAdjusted BIT DEFAULT 0,
+                                FOREIGN KEY (ProgramId) REFERENCES Programs(Id),
+                                FOREIGN KEY (ExerciseId) REFERENCES Exercises(Id)
+                            )
+                        END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
                 // Seed Exercises
                 await SeedExercisesAsync(connection);
 
@@ -195,6 +275,9 @@ namespace RubberJoins.Data
 
                 // Seed SessionSteps
                 await SeedSessionStepsAsync(connection);
+
+                // Seed Programs
+                await SeedProgramsAsync(connection);
             }
         }
 
@@ -351,7 +434,7 @@ namespace RubberJoins.Data
                 ("gym", "cars-routine", "10 min", "10 min", null, "warmup", 3),
                 ("gym", "deep-squat-hold", "60 sec", "90 sec", null, "mobility", 4),
                 ("gym", "dead-hang", "30 sec x3", "60 sec x3", null, "mobility", 5),
-                ("gym", "world-greatest-stretch", "8 reps each", "10 reps each", null, "mobility", 6),
+                ("gym", "worlds-greatest-stretch", "8 reps each", "10 reps each", null, "mobility", 6),
                 ("gym", "goblet-squat", null, "8 reps x3", 2, "strength", 7),
                 ("gym", "turkish-getup", null, "5 reps each x2", 2, "strength", 8),
                 ("gym", "hydro-massager", "5 min", "5 min", null, "recovery", 9),
@@ -406,6 +489,132 @@ namespace RubberJoins.Data
                     await command.ExecuteNonQueryAsync();
                 }
             }
+        }
+
+        private async Task SeedProgramsAsync(SqlConnection connection)
+        {
+            // Check if Programs table already has data
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT COUNT(*) FROM Programs";
+                var count = (int)await command.ExecuteScalarAsync();
+                if (count > 0)
+                    return; // Already seeded
+            }
+
+            // Insert the RubberJoins program
+            int programId;
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = @"
+                    INSERT INTO Programs (Name, DurationDays, Description)
+                    OUTPUT INSERTED.Id
+                    VALUES ('RubberJoins', 28, '4-week joint mobility program')";
+                programId = (int)await command.ExecuteScalarAsync();
+            }
+
+            // Build the 28-day program template
+            // Weekly pattern repeats 4 times:
+            // Day 1 (Mon) = gym, Day 2 (Tue) = home, Day 3 (Wed) = gym,
+            // Day 4 (Thu) = home, Day 5 (Fri) = gym, Day 6 (Sat) = recovery, Day 7 (Sun) = rest
+
+            var dayTypes = new[] { "gym", "home", "gym", "home", "gym", "recovery", "rest" };
+            var programTemplate = new List<(int dayNumber, string dayType, string exerciseId, string category, int sortOrder, string rx)>();
+
+            // Build template for 28 days (4 weeks)
+            for (int week = 0; week < 4; week++)
+            {
+                for (int dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++)
+                {
+                    int dayNumber = week * 7 + dayOfWeek + 1;
+                    string dayType = dayTypes[dayOfWeek];
+
+                    // Get exercises for this day type from SessionSteps data
+                    var exercises = GetExercisesForDayType(dayType);
+                    foreach (var (exerciseId, category, sortOrder, rx) in exercises)
+                    {
+                        programTemplate.Add((dayNumber, dayType, exerciseId, category, sortOrder, rx));
+                    }
+                }
+            }
+
+            // Insert all template entries
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = @"
+                    INSERT INTO ProgramTemplate (ProgramId, DayNumber, DayType, ExerciseId, Category, SortOrder, Rx)
+                    VALUES (@programId, @dayNumber, @dayType, @exerciseId, @category, @sortOrder, @rx)";
+
+                foreach (var template in programTemplate)
+                {
+                    command.Parameters.Clear();
+                    command.Parameters.AddWithValue("@programId", programId);
+                    command.Parameters.AddWithValue("@dayNumber", template.dayNumber);
+                    command.Parameters.AddWithValue("@dayType", template.dayType);
+                    command.Parameters.AddWithValue("@exerciseId", template.exerciseId);
+                    command.Parameters.AddWithValue("@category", template.category);
+                    command.Parameters.AddWithValue("@sortOrder", template.sortOrder);
+                    command.Parameters.AddWithValue("@rx", (object?)template.rx ?? DBNull.Value);
+
+                    await command.ExecuteNonQueryAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets exercises for a specific day type, filtering out those without Phase1Rx
+        /// </summary>
+        private List<(string exerciseId, string category, int sortOrder, string rx)> GetExercisesForDayType(string dayType)
+        {
+            var exercises = new List<(string exerciseId, string category, int sortOrder, string rx)>();
+
+            // Gym exercises
+            if (dayType == "gym")
+            {
+                exercises.Add(("hot-tub", "warmup_tool", 1, "5 min"));
+                exercises.Add(("vibration-plate", "warmup_tool", 2, "1 min"));
+                exercises.Add(("cars-routine", "mobility", 3, "10 min"));
+                exercises.Add(("deep-squat-hold", "mobility", 4, "60 sec"));
+                exercises.Add(("dead-hang", "mobility", 5, "30 sec x3"));
+                exercises.Add(("worlds-greatest-stretch", "mobility", 6, "8 reps each"));
+                // Skip goblet-squat (no Phase1Rx)
+                // Skip turkish-getup (no Phase1Rx)
+                exercises.Add(("hydro-massager", "recovery_tool", 9, "5 min"));
+                exercises.Add(("compex-recovery", "recovery_tool", 10, "15 min"));
+            }
+            // Home exercises
+            else if (dayType == "home")
+            {
+                exercises.Add(("cars-routine", "mobility", 1, "5 min"));
+                exercises.Add(("90-90-hip-switch", "mobility", 2, "30 sec each"));
+                exercises.Add(("couch-stretch", "mobility", 3, "90 sec each"));
+                exercises.Add(("wall-ankle-mob", "mobility", 4, "90 sec each"));
+                exercises.Add(("open-book", "mobility", 5, "10 reps each"));
+                exercises.Add(("quadruped-rocking", "mobility", 6, "20 reps"));
+                // Skip 90-90-pails-rails (no Phase1Rx)
+                // Skip hip-flexor-pails-rails (no Phase1Rx)
+                // Skip ankle-pails-rails (no Phase1Rx)
+                // Skip cossack-squat (no Phase1Rx)
+                // Skip jefferson-curl (no Phase1Rx)
+            }
+            // Recovery exercises
+            else if (dayType == "recovery")
+            {
+                exercises.Add(("steam-sauna", "recovery_tool", 1, "15 min"));
+                exercises.Add(("dry-sauna", "recovery_tool", 2, "15 min"));
+                exercises.Add(("compression-boots", "recovery_tool", 3, "20 min"));
+                exercises.Add(("hydro-massager", "recovery_tool", 4, "10 min"));
+                exercises.Add(("compex-warmup", "recovery_tool", 5, "10 min"));
+            }
+            // Rest exercises
+            else if (dayType == "rest")
+            {
+                exercises.Add(("cars-routine", "mobility", 1, "5 min"));
+                exercises.Add(("dead-hang", "mobility", 2, "20 sec"));
+                exercises.Add(("deep-squat-hold", "mobility", 3, "30 sec"));
+            }
+
+            return exercises;
         }
 
         /// <summary>
@@ -1037,6 +1246,207 @@ namespace RubberJoins.Data
                     await command.ExecuteNonQueryAsync();
                 }
             }
+        }
+
+        // ── Program & Enrollment Methods ──
+
+        public async Task<List<Program>> GetProgramsAsync()
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT Id, Name, DurationDays, Description FROM Programs ORDER BY Name";
+            var programs = new List<Program>();
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                programs.Add(new Program
+                {
+                    Id = reader.GetInt32(0),
+                    Name = reader.GetString(1),
+                    DurationDays = reader.GetInt32(2),
+                    Description = reader.IsDBNull(3) ? "" : reader.GetString(3)
+                });
+            }
+            return programs;
+        }
+
+        public async Task<UserEnrollment?> GetActiveEnrollmentAsync(string userId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT e.Id, e.UserId, e.ProgramId, e.StartDate, e.Status, p.Name
+                FROM UserEnrollments e
+                JOIN Programs p ON e.ProgramId = p.Id
+                WHERE e.UserId = @userId AND e.Status = 'active'";
+            command.Parameters.AddWithValue("@userId", userId);
+            using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                return new UserEnrollment
+                {
+                    Id = reader.GetInt32(0),
+                    UserId = reader.GetString(1),
+                    ProgramId = reader.GetInt32(2),
+                    StartDate = reader.GetString(3),
+                    Status = reader.GetString(4),
+                    ProgramName = reader.GetString(5)
+                };
+            }
+            return null;
+        }
+
+        public async Task EnrollUserAsync(string userId, int programId, string startDate)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Mark any existing active enrollment as completed
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "UPDATE UserEnrollments SET Status = 'completed' WHERE UserId = @userId AND Status = 'active'";
+                cmd.Parameters.AddWithValue("@userId", userId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Create new enrollment
+            int enrollmentId;
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    INSERT INTO UserEnrollments (UserId, ProgramId, StartDate, Status)
+                    OUTPUT INSERTED.Id
+                    VALUES (@userId, @programId, @startDate, 'active')";
+                cmd.Parameters.AddWithValue("@userId", userId);
+                cmd.Parameters.AddWithValue("@programId", programId);
+                cmd.Parameters.AddWithValue("@startDate", startDate);
+                enrollmentId = (int)await cmd.ExecuteScalarAsync();
+            }
+
+            // Get program template
+            var template = new List<ProgramTemplate>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT Id, ProgramId, DayNumber, DayType, ExerciseId, Category, SortOrder, Rx
+                    FROM ProgramTemplate WHERE ProgramId = @programId ORDER BY DayNumber, SortOrder";
+                cmd.Parameters.AddWithValue("@programId", programId);
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    template.Add(new ProgramTemplate
+                    {
+                        Id = reader.GetInt32(0),
+                        ProgramId = reader.GetInt32(1),
+                        DayNumber = reader.GetInt32(2),
+                        DayType = reader.GetString(3),
+                        ExerciseId = reader.GetString(4),
+                        Category = reader.GetString(5),
+                        SortOrder = reader.GetInt32(6),
+                        Rx = reader.IsDBNull(7) ? null : reader.GetString(7)
+                    });
+                }
+            }
+
+            // Delete any existing daily plan for this user+program
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "DELETE FROM UserDailyPlan WHERE UserId = @userId AND ProgramId = @programId";
+                cmd.Parameters.AddWithValue("@userId", userId);
+                cmd.Parameters.AddWithValue("@programId", programId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Stamp out template into UserDailyPlan with real dates
+            var start = DateTime.Parse(startDate);
+            foreach (var t in template)
+            {
+                var date = start.AddDays(t.DayNumber - 1).ToString("yyyy-MM-dd");
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = @"
+                    INSERT INTO UserDailyPlan (UserId, ProgramId, Date, DayType, ExerciseId, Category, SortOrder, Rx, AiAdjusted)
+                    VALUES (@userId, @programId, @date, @dayType, @exerciseId, @category, @sortOrder, @rx, 0)";
+                cmd.Parameters.AddWithValue("@userId", userId);
+                cmd.Parameters.AddWithValue("@programId", programId);
+                cmd.Parameters.AddWithValue("@date", date);
+                cmd.Parameters.AddWithValue("@dayType", t.DayType);
+                cmd.Parameters.AddWithValue("@exerciseId", t.ExerciseId);
+                cmd.Parameters.AddWithValue("@category", t.Category);
+                cmd.Parameters.AddWithValue("@sortOrder", t.SortOrder);
+                cmd.Parameters.AddWithValue("@rx", (object?)t.Rx ?? DBNull.Value);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        public async Task<List<UserDailyPlanEntry>> GetUserDailyPlanAsync(string userId, string date)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT p.Id, p.UserId, p.ProgramId, p.Date, p.DayType, p.ExerciseId, p.Category, p.SortOrder, p.Rx, p.AiAdjusted
+                FROM UserDailyPlan p
+                JOIN UserEnrollments e ON p.UserId = e.UserId AND p.ProgramId = e.ProgramId
+                WHERE p.UserId = @userId AND p.Date = @date AND e.Status = 'active'
+                ORDER BY p.SortOrder";
+            command.Parameters.AddWithValue("@userId", userId);
+            command.Parameters.AddWithValue("@date", date);
+            var entries = new List<UserDailyPlanEntry>();
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                entries.Add(new UserDailyPlanEntry
+                {
+                    Id = reader.GetInt32(0),
+                    UserId = reader.GetString(1),
+                    ProgramId = reader.GetInt32(2),
+                    Date = reader.GetString(3),
+                    DayType = reader.GetString(4),
+                    ExerciseId = reader.GetString(5),
+                    Category = reader.GetString(6),
+                    SortOrder = reader.GetInt32(7),
+                    Rx = reader.IsDBNull(8) ? null : reader.GetString(8),
+                    AiAdjusted = reader.GetBoolean(9)
+                });
+            }
+            return entries;
+        }
+
+        public async Task<List<UserDailyPlanEntry>> GetUserDailyPlanRangeAsync(string userId, string startDate, string endDate)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT p.Id, p.UserId, p.ProgramId, p.Date, p.DayType, p.ExerciseId, p.Category, p.SortOrder, p.Rx, p.AiAdjusted
+                FROM UserDailyPlan p
+                JOIN UserEnrollments e ON p.UserId = e.UserId AND p.ProgramId = e.ProgramId
+                WHERE p.UserId = @userId AND p.Date >= @startDate AND p.Date <= @endDate AND e.Status = 'active'
+                ORDER BY p.Date, p.SortOrder";
+            command.Parameters.AddWithValue("@userId", userId);
+            command.Parameters.AddWithValue("@startDate", startDate);
+            command.Parameters.AddWithValue("@endDate", endDate);
+            var entries = new List<UserDailyPlanEntry>();
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                entries.Add(new UserDailyPlanEntry
+                {
+                    Id = reader.GetInt32(0),
+                    UserId = reader.GetString(1),
+                    ProgramId = reader.GetInt32(2),
+                    Date = reader.GetString(3),
+                    DayType = reader.GetString(4),
+                    ExerciseId = reader.GetString(5),
+                    Category = reader.GetString(6),
+                    SortOrder = reader.GetInt32(7),
+                    Rx = reader.IsDBNull(8) ? null : reader.GetString(8),
+                    AiAdjusted = reader.GetBoolean(9)
+                });
+            }
+            return entries;
         }
     }
 }

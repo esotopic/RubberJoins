@@ -26,7 +26,15 @@
 }
 
 <div class="page-content">
-    @if (!string.IsNullOrEmpty(Model.ViewModel.ErrorMessage))
+    @if (Model.ViewModel.ErrorMessage == "NO_ENROLLMENT")
+    {
+        <div class="settings-card" style="margin:24px 16px;text-align:center;">
+            <div class="settings-card-title" style="margin-bottom:8px;">Welcome to RubberJoins</div>
+            <p style="color:var(--tx3);font-size:13px;margin-bottom:16px;">You don't have an active program. Pick one to get started!</p>
+            <a href="/Enroll" style="display:inline-block;background:var(--acc);color:#fff;padding:10px 24px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Choose a Program</a>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(Model.ViewModel.ErrorMessage))
     {
         <div class="error-banner">@Model.ViewModel.ErrorMessage</div>
     }

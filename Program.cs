@@ -152,24 +152,12 @@ app.MapPost("/api/logsession", async (HttpContext context, RubberJoinsRepository
 
     try
     {
-        string GetDayType(DayOfWeek d) => d switch
-        {
-            DayOfWeek.Monday => "gym",
-            DayOfWeek.Tuesday => "home",
-            DayOfWeek.Wednesday => "gym",
-            DayOfWeek.Thursday => "home",
-            DayOfWeek.Friday => "gym",
-            DayOfWeek.Saturday => "recovery",
-            DayOfWeek.Sunday => "rest",
-            _ => "rest"
-        };
-
-        var dayType = GetDayType(DateTime.UtcNow.DayOfWeek);
-        var sessionSteps = await repository.GetSessionStepsAsync(dayType);
+        // Use UserDailyPlan instead of SessionSteps
+        var planEntries = await repository.GetUserDailyPlanAsync(userId, todayDate);
         var settings = await repository.GetUserSettingsAsync(userId);
         var disabledToolIds = (settings?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
 
-        int totalSteps = sessionSteps.Count(s => !disabledToolIds.Contains(s.ExerciseId));
+        int totalSteps = planEntries.Count(e => !disabledToolIds.Contains(e.ExerciseId));
         var dailyChecks = await repository.GetDailyChecksAsync(userId, todayDate);
         int completedSteps = dailyChecks.Count(c => c.ItemType == "step" && c.Checked);
 

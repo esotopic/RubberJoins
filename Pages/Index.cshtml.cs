@@ -24,57 +24,69 @@ namespace RubberJoins.Pages
 
             try
             {
-                // Get user settings to determine phase from start date
-                var settings = await _repository.GetUserSettingsAsync(userId);
-                var phaseInfo = CalculatePhaseAndWeek(settings?.StartDate);
+                // Check enrollment
+                var enrollment = await _repository.GetActiveEnrollmentAsync(userId);
+                if (enrollment == null)
+                {
+                    ViewModel.ErrorMessage = "NO_ENROLLMENT";
+                    return;
+                }
 
-                // Get day type and name
+                // Calculate week from enrollment start date
+                int week = 1;
+                if (DateTime.TryParse(enrollment.StartDate, out var enrollStart))
+                {
+                    int daysSince = (DateTime.UtcNow - enrollStart).Days;
+                    week = Math.Max(1, daysSince / 7 + 1);
+                }
+
+                // Get today's plan
+                var planEntries = await _repository.GetUserDailyPlanAsync(userId, todayDate);
+
+                // Get user settings for disabled tools
+                var settings = await _repository.GetUserSettingsAsync(userId);
+                var disabledToolIds = (settings?.DisabledTools ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+
+                // Filter out disabled tools
+                planEntries = planEntries.Where(e => !disabledToolIds.Contains(e.ExerciseId)).ToList();
+
+                string dayType = planEntries.Count > 0 ? planEntries[0].DayType : "rest";
                 var dayOfWeek = DateTime.UtcNow.DayOfWeek;
-                var dayType = GetDayType(dayOfWeek);
                 var dayName = dayOfWeek.ToString();
 
-                // Get session type and minutes based on day type
                 (string sessionType, int estMinutes, string location) = GetSessionDetails(dayType);
 
-                // Get session steps for this day and phase
-                var allSessionSteps = await _repository.GetSessionStepsAsync(dayType);
-                var disabledToolIds = (settings?.DisabledTools ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries).ToHashSet();
-                var sessionSteps = FilterSessionStepsByPhase(allSessionSteps, phaseInfo.phase, disabledToolIds);
-
-                // Get exercises for these steps
+                // Get exercises
                 var allExercises = await _repository.GetAllExercisesAsync();
                 var exerciseMap = allExercises.ToDictionary(e => e.Id);
 
-                // Get daily checks for today
+                // Get daily checks
                 var dailyChecks = await _repository.GetDailyChecksAsync(userId, todayDate);
                 var checkMap = dailyChecks.ToDictionary(c => $"{c.ItemType}:{c.ItemId}:{c.StepIndex}", c => c.Checked);
 
-                // Build today steps
+                // Build today steps from plan entries
                 var todaySteps = new List<TodayStep>();
-                for (int i = 0; i < sessionSteps.Count; i++)
+                for (int i = 0; i < planEntries.Count; i++)
                 {
-                    var step = sessionSteps[i];
-                    if (exerciseMap.TryGetValue(step.ExerciseId, out var exercise))
+                    var entry = planEntries[i];
+                    if (exerciseMap.TryGetValue(entry.ExerciseId, out var exercise))
                     {
-                        string rx = phaseInfo.phase == 1 ? step.Phase1Rx : step.Phase2Rx;
-                        rx = rx ?? "";
-
-                        string checkKey = $"step:{step.Id}:{i}";
+                        string checkKey = $"step:{entry.Id}:{i}";
                         bool isChecked = checkMap.TryGetValue(checkKey, out var val) && val;
 
                         todaySteps.Add(new TodayStep
                         {
                             Index = i,
-                            SessionStepId = step.Id,
+                            SessionStepId = entry.Id,
                             Exercise = exercise,
-                            Rx = rx,
-                            Section = step.Section,
+                            Rx = entry.Rx ?? "",
+                            Section = entry.Category,
                             Checked = isChecked
                         });
                     }
                 }
 
-                // Get supplements grouped by time
+                // Get supplements
                 var allSupplements = await _repository.GetSupplementsAsync();
                 var supplementChecks = new List<SupplementCheck>();
                 foreach (var supp in allSupplements)
@@ -88,10 +100,11 @@ namespace RubberJoins.Pages
                     });
                 }
 
+                int durationWeeks = 4; // RubberJoins is 4 weeks
                 ViewModel = new TodayViewModel
                 {
-                    Week = phaseInfo.week,
-                    Phase = phaseInfo.phase,
+                    Week = week,
+                    Phase = week <= 2 ? 1 : 2, // simplified phase calc for 4-week program
                     DayName = dayName,
                     SessionType = sessionType,
                     DayKey = dayType,
@@ -106,38 +119,6 @@ namespace RubberJoins.Pages
             }
         }
 
-        private (int week, int phase) CalculatePhaseAndWeek(string? startDateStr)
-        {
-            if (string.IsNullOrEmpty(startDateStr) || !DateTime.TryParse(startDateStr, out var startDate))
-            {
-                return (1, 1);
-            }
-
-            var today = DateTime.UtcNow;
-            int daysSinceStart = (today - startDate).Days;
-
-            // 12-week program, 6 weeks per phase
-            int week = Math.Min(daysSinceStart / 7 + 1, 12);
-            int phase = week <= 6 ? 1 : 2;
-
-            return (week, phase);
-        }
-
-        private string GetDayType(DayOfWeek dayOfWeek)
-        {
-            return dayOfWeek switch
-            {
-                DayOfWeek.Monday => "gym",
-                DayOfWeek.Tuesday => "home",
-                DayOfWeek.Wednesday => "gym",
-                DayOfWeek.Thursday => "home",
-                DayOfWeek.Friday => "gym",
-                DayOfWeek.Saturday => "recovery",
-                DayOfWeek.Sunday => "rest",
-                _ => "rest"
-            };
-        }
-
         private (string sessionType, int estMinutes, string location) GetSessionDetails(string dayType)
         {
             return dayType switch
@@ -148,16 +129,6 @@ namespace RubberJoins.Pages
                 "rest" => ("Rest Day", 0, "Rest"),
                 _ => ("Unknown", 0, "")
             };
-        }
-
-        private List<SessionStep> FilterSessionStepsByPhase(List<SessionStep> steps, int phase, HashSet<string> disabledToolIds)
-        {
-            return steps
-                .Where(s =>
-                    (s.PhaseOnly == null || s.PhaseOnly == phase) &&
-                    !disabledToolIds.Contains(s.ExerciseId))
-                .OrderBy(s => s.SortOrder)
-                .ToList();
         }
     }
 }
