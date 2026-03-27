@@ -1,0 +1,152 @@
+@page
+@model ProgressModel
+
+@{
+    ViewData["Title"] = "Progress";
+}
+
+<div class="page-content">
+    <header class="page-header">
+        <h1>Progress</h1>
+    </header>
+
+    @if (!string.IsNullOrEmpty(Model.ViewModel.ErrorMessage))
+    {
+        <div class="error-banner">@Model.ViewModel.ErrorMessage</div>
+    }
+
+    <div class="stats-grid">
+        <div class="stat-box">
+            <div class="stat-value">@Model.ViewModel.SessionsThisWeek</div>
+            <div class="stat-label">Sessions This Week</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">@Model.ViewModel.SessionsTotal</div>
+            <div class="stat-label">Total Sessions</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">
+                @{
+                    var stepsPercent = Model.ViewModel.TodayStepsTotal > 0
+                        ? (int)((Model.ViewModel.TodayStepsDone * 100) / Model.ViewModel.TodayStepsTotal)
+                        : 0;
+                }
+                @stepsPercent%
+            </div>
+            <div class="stat-label">Today's Steps</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">@Model.ViewModel.TodaySuppsDone/@Model.ViewModel.TodaySuppsTotal</div>
+            <div class="stat-label">Supps Today</div>
+        </div>
+    </div>
+
+    @if (Model.ViewModel.Milestones.Any())
+    {
+        <section class="milestones-card">
+            <h2 class="card-title">Milestones</h2>
+            <div class="milestones-list">
+                @foreach (var milestone in Model.ViewModel.Milestones)
+                {
+                    <div class="milestone-item" data-milestone-id="@milestone.Id">
+                        <input type="checkbox" class="milestone-checkbox"
+                               data-milestone-id="@milestone.Id"
+                               @(milestone.Done ? "checked" : "")>
+                        <div class="milestone-content">
+                            <span class="milestone-name">@milestone.Name</span>
+                            @if (milestone.Done && !string.IsNullOrEmpty(milestone.AchievedDate))
+                            {
+                                <span class="achieved-date">@FormatDate(milestone.AchievedDate)</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    @if (!Model.ViewModel.TodayLogged)
+    {
+        <button id="logSessionBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px; margin-bottom: 20px;">
+            Log Today as Complete
+        </button>
+    }
+    else
+    {
+        <div class="logged-indicator">
+            <p>✓ Today's session has been logged</p>
+        </div>
+    }
+
+    <div style="height: 100px;"></div>
+</div>
+
+<script>
+document.querySelectorAll('.milestone-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', async (e) => {
+        const milestoneId = e.target.dataset.milestoneId;
+
+        try {
+            const response = await fetch('/Api?handler=milestone', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: milestoneId
+                })
+            });
+
+            if (!response.ok) {
+                e.target.checked = !e.target.checked;
+                alert('Failed to save milestone');
+            }
+        } catch (error) {
+            e.target.checked = !e.target.checked;
+            console.error('Error:', error);
+        }
+    });
+});
+
+const logSessionBtn = document.getElementById('logSessionBtn');
+if (logSessionBtn) {
+    logSessionBtn.addEventListener('click', async () => {
+        logSessionBtn.disabled = true;
+        logSessionBtn.textContent = 'Logging...';
+
+        try {
+            const response = await fetch('/Api?handler=logsession', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            });
+
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Failed to log session');
+                logSessionBtn.disabled = false;
+                logSessionBtn.textContent = 'Log Today as Complete';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to log session');
+            logSessionBtn.disabled = false;
+            logSessionBtn.textContent = 'Log Today as Complete';
+        }
+    });
+}
+</script>
+
+@functions {
+    private string FormatDate(string dateStr)
+    {
+        if (DateTime.TryParse(dateStr, out var date))
+        {
+            return date.ToString("MMM d, yyyy");
+        }
+        return dateStr;
+    }
+}

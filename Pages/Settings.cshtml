@@ -1,0 +1,145 @@
+@page
+@model SettingsModel
+
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="page-content">
+    <header class="page-header">
+        <h1>Settings</h1>
+    </header>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="error-banner">@Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="success-banner">@Model.SuccessMessage</div>
+    }
+
+    <form method="post" class="settings-form">
+        <section class="settings-section">
+            <h2 class="section-title">Program Start Date</h2>
+            <div class="form-group">
+                <label for="StartDate">Start Date</label>
+                <input type="date" id="StartDate" name="StartDate" value="@Model.StartDate" class="form-input">
+            </div>
+            @if (!string.IsNullOrEmpty(Model.StartDate))
+            {
+                <div class="phase-info">
+                    <p>Week <strong>@Model.CurrentWeek</strong> of 12</p>
+                    <p>Phase <strong>@Model.CurrentPhase</strong>: @GetPhaseLabel(Model.CurrentPhase)</p>
+                </div>
+            }
+        </section>
+
+        <section class="settings-section">
+            <h2 class="section-title">Recovery Tools Available</h2>
+            <p class="section-description">Toggle the recovery tools you have access to. Disabled tools will be hidden from your sessions.</p>
+            <div class="tools-list">
+                <div class="tool-item">
+                    <label class="toggle-label" for="RecoveryTools_hot-tub">
+                        <input type="hidden" name="RecoveryTools[hot-tub]" value="false">
+                        <input type="checkbox" id="RecoveryTools_hot-tub" name="RecoveryTools[hot-tub]" value="true" @(Model.RecoveryTools.ContainsKey("hot-tub") && Model.RecoveryTools["hot-tub"] ? "checked" : "")>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="tool-name">Hot Tub</span>
+                </div>
+                <div class="tool-item">
+                    <label class="toggle-label" for="RecoveryTools_vibration-plate">
+                        <input type="hidden" name="RecoveryTools[vibration-plate]" value="false">
+                        <input type="checkbox" id="RecoveryTools_vibration-plate" name="RecoveryTools[vibration-plate]" value="true" @(Model.RecoveryTools.ContainsKey("vibration-plate") && Model.RecoveryTools["vibration-plate"] ? "checked" : "")>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="tool-name">Vibration Plate</span>
+                </div>
+                <div class="tool-item">
+                    <label class="toggle-label" for="RecoveryTools_hydro-massager">
+                        <input type="hidden" name="RecoveryTools[hydro-massager]" value="false">
+                        <input type="checkbox" id="RecoveryTools_hydro-massager" name="RecoveryTools[hydro-massager]" value="true" @(Model.RecoveryTools.ContainsKey("hydro-massager") && Model.RecoveryTools["hydro-massager"] ? "checked" : "")>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="tool-name">Hydro Massager</span>
+                </div>
+                <div class="tool-item">
+                    <label class="toggle-label" for="RecoveryTools_steam-sauna">
+                        <input type="hidden" name="RecoveryTools[steam-sauna]" value="false">
+                        <input type="checkbox" id="RecoveryTools_steam-sauna" name="RecoveryTools[steam-sauna]" value="true" @(Model.RecoveryTools.ContainsKey("steam-sauna") && Model.RecoveryTools["steam-sauna"] ? "checked" : "")>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="tool-name">Steam Sauna</span>
+                </div>
+                <div class="tool-item">
+                    <label class="toggle-label" for="RecoveryTools_dry-sauna">
+                        <input type="hidden" name="RecoveryTools[dry-sauna]" value="false">
+                        <input type="checkbox" id="RecoveryTools_dry-sauna" name="RecoveryTools[dry-sauna]" value="true" @(Model.RecoveryTools.ContainsKey("dry-sauna") && Model.RecoveryTools["dry-sauna"] ? "checked" : "")>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="tool-name">Dry Sauna</span>
+                </div>
+                <div class="tool-item">
+                    <label class="toggle-label" for="RecoveryTools_compex-warmup">
+                        <input type="hidden" name="RecoveryTools[compex-warmup]" value="false">
+                        <input type="checkbox" id="RecoveryTools_compex-warmup" name="RecoveryTools[compex-warmup]" value="true" @(Model.RecoveryTools.ContainsKey("compex-warmup") && Model.RecoveryTools["compex-warmup"] ? "checked" : "")>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="tool-name">Compex Warm-Up</span>
+                </div>
+                <div class="tool-item">
+                    <label class="toggle-label" for="RecoveryTools_compex-recovery">
+                        <input type="hidden" name="RecoveryTools[compex-recovery]" value="false">
+                        <input type="checkbox" id="RecoveryTools_compex-recovery" name="RecoveryTools[compex-recovery]" value="true" @(Model.RecoveryTools.ContainsKey("compex-recovery") && Model.RecoveryTools["compex-recovery"] ? "checked" : "")>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="tool-name">Compex Recovery</span>
+                </div>
+                <div class="tool-item">
+                    <label class="toggle-label" for="RecoveryTools_compression-boots">
+                        <input type="hidden" name="RecoveryTools[compression-boots]" value="false">
+                        <input type="checkbox" id="RecoveryTools_compression-boots" name="RecoveryTools[compression-boots]" value="true" @(Model.RecoveryTools.ContainsKey("compression-boots") && Model.RecoveryTools["compression-boots"] ? "checked" : "")>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="tool-name">Compression Boots</span>
+                </div>
+            </div>
+        </section>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+            Save Settings
+        </button>
+    </form>
+
+    <form method="post" asp-page-handler="reset" style="margin-top: 20px;">
+        <button type="button" id="resetBtn" class="btn btn-danger" style="width: 100%; background-color: #e74c3c;">
+            Reset All Progress
+        </button>
+    </form>
+
+    <div style="height: 100px;"></div>
+</div>
+
+<script>
+const resetBtn = document.getElementById('resetBtn');
+if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
+            resetBtn.closest('form').submit();
+        }
+    });
+}
+</script>
+
+@functions {
+    private string GetPhaseLabel(int phase)
+    {
+        return phase switch
+        {
+            1 => "Foundation",
+            2 => "Strength",
+            _ => "Unknown"
+        };
+    }
+}

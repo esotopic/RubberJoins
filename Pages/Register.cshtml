@@ -1,0 +1,140 @@
+@page
+@model RegisterModel
+
+@{
+    ViewData["Title"] = "Register";
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#111318">
+    <title>RubberJoints — Register</title>
+    <link rel="stylesheet" href="~/css/site.css">
+    <style>
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: var(--bg);
+        }
+        .auth-card {
+            background: var(--s1);
+            border-radius: 16px;
+            padding: 40px 32px;
+            width: 100%;
+            max-width: 380px;
+        }
+        .auth-logo {
+            text-align: center;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            color: var(--acc);
+            margin-bottom: 8px;
+        }
+        .auth-subtitle {
+            text-align: center;
+            color: var(--t2);
+            font-size: 0.9rem;
+            margin-bottom: 32px;
+        }
+        .auth-field {
+            margin-bottom: 20px;
+        }
+        .auth-field label {
+            display: block;
+            color: var(--t2);
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+        }
+        .auth-field input {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--s2);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            color: var(--t1);
+            font-size: 1rem;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .auth-field input:focus {
+            border-color: var(--acc);
+        }
+        .auth-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--acc);
+            color: #111;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .auth-btn:hover {
+            opacity: 0.9;
+        }
+        .auth-error {
+            background: rgba(255,59,48,0.15);
+            color: #ff6b6b;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+        .auth-link {
+            text-align: center;
+            margin-top: 20px;
+            color: var(--t2);
+            font-size: 0.9rem;
+        }
+        .auth-link a {
+            color: var(--acc);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-logo">RUBBERJOINTS</div>
+            <div class="auth-subtitle">Create your account</div>
+
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="auth-error">@Model.ErrorMessage</div>
+            }
+
+            <form method="post">
+                <div class="auth-field">
+                    <label for="Username">Username</label>
+                    <input type="text" id="Username" name="Username" value="@Model.Username"
+                           autocomplete="username" autofocus required>
+                </div>
+                <div class="auth-field">
+                    <label for="Password">Password</label>
+                    <input type="password" id="Password" name="Password"
+                           autocomplete="new-password" required>
+                </div>
+                <div class="auth-field">
+                    <label for="ConfirmPassword">Confirm Password</label>
+                    <input type="password" id="ConfirmPassword" name="ConfirmPassword"
+                           autocomplete="new-password" required>
+                </div>
+                <button type="submit" class="auth-btn">Create Account</button>
+            </form>
+
+            <div class="auth-link">
+                Already have an account? <a href="/Login">Sign in</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

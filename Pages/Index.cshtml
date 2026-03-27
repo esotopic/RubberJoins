@@ -1,0 +1,255 @@
+@page
+@model IndexModel
+
+@{
+    ViewData["Title"] = "Today";
+}
+
+<div class="page-content">
+    <header class="page-header">
+        <div class="logo">RUBBERJOINTS</div>
+        <div class="badge">Week @Model.ViewModel.Week of 12 · Phase @Model.ViewModel.Phase: @GetPhaseLabel(Model.ViewModel.Phase)</div>
+    </header>
+
+    @if (!string.IsNullOrEmpty(Model.ViewModel.ErrorMessage))
+    {
+        <div class="error-banner">@Model.ViewModel.ErrorMessage</div>
+    }
+
+    <section class="hero-section">
+        <h1 class="hero-day">@Model.ViewModel.DayName</h1>
+        <p class="hero-type">@Model.ViewModel.SessionType</p>
+        <p class="hero-time">~@Model.ViewModel.EstMinutes mins</p>
+        <p class="hero-location">@GetLocationEmoji(Model.ViewModel.DayKey) @GetLocationName(Model.ViewModel.DayKey)</p>
+    </section>
+
+    <section class="legend-section">
+        <div class="legend-item">
+            <span class="legend-dot" style="background-color: #45c4a0;"></span>
+            <span>Mobility</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot" style="background-color: #9b59b6;"></span>
+            <span>Strength</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot" style="background-color: #ff6b35;"></span>
+            <span>Warm-up</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot" style="background-color: #4a90e2;"></span>
+            <span>Recovery</span>
+        </div>
+    </section>
+
+    @if (Model.ViewModel.Steps.Any())
+    {
+        <section class="session-card">
+            <h2 class="card-title">Today's Session</h2>
+            <div class="steps-list">
+                @foreach (var step in Model.ViewModel.Steps)
+                {
+                    <div class="step-item" data-step-id="@step.Index">
+                        <input type="checkbox" class="step-checkbox"
+                               data-step-id="@step.Index"
+                               data-exercise-id="@step.Exercise.Id"
+                               @(step.Checked ? "checked" : "")>
+                        <div class="step-content">
+                            <div class="step-header">
+                                <span class="category-dot" style="background-color: @GetCategoryColor(step.Exercise.Category);"></span>
+                                <span class="exercise-name" role="button" tabindex="0">@step.Exercise.Name</span>
+                            </div>
+                            <p class="prescription">@step.Rx</p>
+                            <div class="step-detail" style="display: none;">
+                                <p class="description">@step.Exercise.Description</p>
+                                @if (!string.IsNullOrEmpty(step.Exercise.Cues))
+                                {
+                                    <div class="cues">
+                                        <strong>Cues:</strong>
+                                        <ul>
+                                            @foreach (var cue in step.Exercise.Cues.Split('|'))
+                                            {
+                                                <li>@cue.Trim()</li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(step.Exercise.Warning))
+                                {
+                                    <p class="warning">⚠️ @step.Exercise.Warning</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+    else if (Model.ViewModel.DayKey == "rest")
+    {
+        <div class="rest-day-message">
+            <p>Today is a rest day. Take it easy and recover!</p>
+        </div>
+    }
+
+    @if (Model.ViewModel.Supplements.Any())
+    {
+        <section class="supplements-card">
+            <h2 class="card-title">Supplements</h2>
+            <div class="supplements-list">
+                @foreach (var group in Model.ViewModel.Supplements.GroupBy(s => s.Supplement.TimeGroup))
+                {
+                    <div class="supplement-group">
+                        <h3 class="group-title">@GetTimeGroupLabel(group.Key)</h3>
+                        @foreach (var item in group)
+                        {
+                            <div class="supplement-item">
+                                <input type="checkbox" class="supplement-checkbox"
+                                       data-supplement-id="@item.Supplement.Id"
+                                       @(item.Checked ? "checked" : "")>
+                                <span class="supplement-name">@item.Supplement.Name</span>
+                                <span class="supplement-dose">@item.Supplement.Dose</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <div style="height: 100px;"></div>
+</div>
+
+<script>
+document.querySelectorAll('.step-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', async (e) => {
+        const stepId = e.target.dataset.stepId;
+        const exerciseId = e.target.dataset.exerciseId;
+
+        try {
+            const response = await fetch('/Api?handler=check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    itemType: 'step',
+                    itemId: stepId,
+                    exerciseId: exerciseId,
+                    stepIndex: stepId
+                })
+            });
+
+            if (!response.ok) {
+                e.target.checked = !e.target.checked;
+                alert('Failed to save check');
+            }
+        } catch (error) {
+            e.target.checked = !e.target.checked;
+            console.error('Error:', error);
+        }
+    });
+});
+
+document.querySelectorAll('.supplement-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', async (e) => {
+        const supplementId = e.target.dataset.supplementId;
+
+        try {
+            const response = await fetch('/Api?handler=check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    itemType: 'supplement',
+                    itemId: supplementId,
+                    stepIndex: 0
+                })
+            });
+
+            if (!response.ok) {
+                e.target.checked = !e.target.checked;
+                alert('Failed to save check');
+            }
+        } catch (error) {
+            e.target.checked = !e.target.checked;
+            console.error('Error:', error);
+        }
+    });
+});
+
+document.querySelectorAll('.exercise-name').forEach(name => {
+    name.addEventListener('click', (e) => {
+        const stepItem = e.target.closest('.step-item');
+        const detail = stepItem.querySelector('.step-detail');
+        detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+    });
+
+    name.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            name.click();
+        }
+    });
+});
+</script>
+
+@functions {
+    private string GetPhaseLabel(int phase)
+    {
+        return phase switch
+        {
+            1 => "Foundation",
+            2 => "Strength",
+            _ => "Unknown"
+        };
+    }
+
+    private string GetLocationEmoji(string dayKey)
+    {
+        return dayKey switch
+        {
+            "gym" => "🏋️",
+            "home" => "🏠",
+            "recovery" => "🏠",
+            "rest" => "🛏️",
+            _ => "📍"
+        };
+    }
+
+    private string GetLocationName(string dayKey)
+    {
+        return dayKey switch
+        {
+            "gym" => "Gym",
+            "home" => "Home",
+            "recovery" => "Home",
+            "rest" => "Rest",
+            _ => "Unknown"
+        };
+    }
+
+    private string GetCategoryColor(string category)
+    {
+        return category switch
+        {
+            "mobility" => "#45c4a0",
+            "strength" => "#9b59b6",
+            "warmup_tool" => "#ff6b35",
+            "recovery_tool" => "#4a90e2",
+            _ => "#7b9aff"
+        };
+    }
+
+    private string GetTimeGroupLabel(string timeGroup)
+    {
+        return timeGroup switch
+        {
+            "am" => "Morning",
+            "mid" => "Midday",
+            "pm" => "Evening",
+            _ => "Unknown"
+        };
+    }
+}
