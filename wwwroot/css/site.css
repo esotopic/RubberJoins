@@ -285,12 +285,7 @@ header {
 
 /* Supplements card */
 .supplements-card {
-  margin: 0 16px 12px;
-  background-color: var(--s1);
-  border: 1px solid var(--brd);
-  border-radius: 16px;
-  overflow: hidden;
-  padding: 16px 0 0;
+  padding: 0;
 }
 
 .supplements-card .card-title {
@@ -299,15 +294,11 @@ header {
 }
 
 .supplement-group .group-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--tx3);
-  padding: 10px 16px;
-  background-color: var(--s2);
-  border-bottom: 1px solid var(--brd);
-  border-top: 1px solid var(--brd);
   margin: 0;
 }
 
@@ -926,7 +917,13 @@ input[type='date']::-webkit-calendar-picker-indicator {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  padding: 8px 16px;
+  background-color: var(--s2);
+  border-top: 1px solid var(--brd);
+}
+
+.supplement-group:first-child .supplement-group-header {
+  border-top: none;
 }
 
 .supplement-group-header .group-title {
