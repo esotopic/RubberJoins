@@ -1339,7 +1339,7 @@ input[type='date']::-webkit-calendar-picker-indicator {
 }
 
 .week-day.today {
-  background: var(--acc);
+  background: #34c759;
 }
 
 .week-day.today .week-day-label,
@@ -1383,9 +1383,9 @@ input[type='date']::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
 
-/* When selected AND today overlap, selected wins (same style) */
+/* When selected AND today overlap, today's green wins */
 .week-day.selected.today {
-  background: var(--acc);
+  background: #34c759;
 }
 
 /* ============================================================================
