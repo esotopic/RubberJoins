@@ -42,16 +42,23 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// DB initialization - run synchronously at startup to ensure tables exist
-try
+// DB initialization with retry (Azure SQL Serverless may be paused)
 {
     var repository = app.Services.GetRequiredService<RubberJoins.Data.RubberJoinsRepository>();
-    repository.InitializeAsync().GetAwaiter().GetResult();
-    app.Logger.LogInformation("Database initialized successfully.");
-}
-catch (Exception ex)
-{
-    app.Logger.LogError(ex, "Failed to initialize database. App continues - use /api/init to retry.");
+    for (int attempt = 1; attempt <= 3; attempt++)
+    {
+        try
+        {
+            repository.InitializeAsync().GetAwaiter().GetResult();
+            app.Logger.LogInformation("Database initialized successfully on attempt {Attempt}.", attempt);
+            break;
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogWarning(ex, "DB init attempt {Attempt} failed.", attempt);
+            if (attempt < 3) Thread.Sleep(5000);
+        }
+    }
 }
 
 app.MapRazorPages();
