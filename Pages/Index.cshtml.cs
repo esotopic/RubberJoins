@@ -149,7 +149,7 @@ namespace RubberJoins.Pages
                 }
                 else
                 {
-                    ViewModel.ErrorMessage = $"DB Error: {ex.GetType().Name}: {ex.Message}";
+                    ViewModel.ErrorMessage = "Unable to connect to the database. Please try again in a moment.";
                 }
             }
         }
