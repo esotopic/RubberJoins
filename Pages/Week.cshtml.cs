@@ -13,6 +13,7 @@ namespace RubberJoins.Pages
         public List<WeekDayData> Days { get; set; } = new();
         public int Week { get; set; } = 1;
         public int Phase { get; set; } = 1;
+        public int WeekOffset { get; set; } = 0;
         public string? ErrorMessage { get; set; }
 
         public WeekModel(RubberJoinsRepository repository)
@@ -20,8 +21,9 @@ namespace RubberJoins.Pages
             _repository = repository;
         }
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(int? wo)
         {
+            WeekOffset = wo ?? 0;
             string userId = User.Identity?.Name ?? "default";
 
             try
@@ -39,14 +41,15 @@ namespace RubberJoins.Pages
                 var today = DateTime.UtcNow;
                 if (DateTime.TryParse(enrollment.StartDate, out var enrollStart))
                 {
-                    int daysSinceStart = (today - enrollStart).Days;
+                    int daysSinceStart = (today.AddDays(WeekOffset * 7) - enrollStart).Days;
                     Week = Math.Max(1, daysSinceStart / 7 + 1);
                     Phase = Week <= 2 ? 1 : 2;
                 }
 
-                // Get Monday and Sunday of current week
-                var dayOfWeek = today.DayOfWeek;
-                var monday = today.AddDays(-(int)dayOfWeek + (int)DayOfWeek.Monday);
+                // Get Monday and Sunday of the target week
+                var refDate = today.AddDays(WeekOffset * 7);
+                var dayOfWeek = refDate.DayOfWeek;
+                var monday = refDate.AddDays(-(int)dayOfWeek + (int)DayOfWeek.Monday);
                 if (dayOfWeek == DayOfWeek.Sunday) monday = monday.AddDays(-7);
                 var sunday = monday.AddDays(6);
 
@@ -94,6 +97,7 @@ namespace RubberJoins.Pages
                     {
                         DayName = dayNames[i],
                         DateLabel = date.ToString("MMM d"),
+                        DateStr = dateStr,
                         DayType = dayType,
                         SessionLabel = sessionLabel,
                         EstMinutes = estMinutes,
@@ -210,6 +214,7 @@ namespace RubberJoins.Pages
     {
         public string DayName { get; set; } = "";
         public string DateLabel { get; set; } = "";
+        public string DateStr { get; set; } = "";
         public string DayType { get; set; } = "";
         public string SessionLabel { get; set; } = "";
         public int EstMinutes { get; set; }

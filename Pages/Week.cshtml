@@ -16,12 +16,21 @@
         <div class="pill">Week @Model.Week of 4</div>
     </header>
 
+    <div class="week-nav">
+        <a href="/Week?wo=@(Model.WeekOffset - 1)" class="week-nav-btn">&lsaquo;</a>
+        @if (Model.WeekOffset != 0)
+        {
+            <a href="/Week" class="week-nav-today-link">Current Week</a>
+        }
+        <a href="/Week?wo=@(Model.WeekOffset + 1)" class="week-nav-btn">&rsaquo;</a>
+    </div>
+
     <div class="cal-week">
         @foreach (var day in Model.Days)
         {
-            <div class="cal-day @(day.IsToday ? "is-today" : "")">
+            <a href="/?date=@day.DateStr" class="cal-day @(day.IsToday ? "is-today" : "")" style="text-decoration:none;color:inherit;">
                 <div class="cal-day-hdr">
-                    <div class="cal-day-name" style="@(day.IsToday ? "color:var(--acc);" : "")">
+                    <div class="cal-day-name" style="@(day.IsToday ? "color:#34c759;" : "")">
                         @day.DayName@(day.IsToday ? " (Today)" : "")
                     </div>
                     <div class="cal-day-date">@day.DateLabel</div>
@@ -54,7 +63,7 @@
                 {
                     <div class="cal-empty">No data</div>
                 }
-            </div>
+            </a>
         }
     </div>
 

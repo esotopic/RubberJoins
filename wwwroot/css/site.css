@@ -1493,11 +1493,50 @@ input[type='date']::-webkit-calendar-picker-indicator {
    CALENDAR VIEW (Week Page)
    ============================================================================ */
 
+.week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 16px 12px;
+}
+
+.week-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--s2);
+  color: var(--tx);
+  text-decoration: none;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.week-nav-today-link {
+  font-size: 13px;
+  color: var(--acc);
+  text-decoration: none;
+  font-weight: 600;
+}
+
 .cal-week {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 0 16px 16px;
+}
+
+a.cal-day {
+  display: block;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+a.cal-day:active {
+  transform: scale(0.98);
 }
 
 .cal-day {
