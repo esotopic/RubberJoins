@@ -141,9 +141,16 @@ namespace RubberJoins.Pages
             }
             catch (Exception ex)
             {
-                // Try running DB migration in case it didn't run at startup (e.g., DB was paused)
-                try { await _repository.InitializeAsync(); } catch { }
-                ViewModel.ErrorMessage = $"DB Error: {ex.GetType().Name}: {ex.Message} — Please refresh the page.";
+                if (ex.Message.Contains("TimeGroup"))
+                {
+                    // TimeGroup column missing - try adding it directly
+                    try { await _repository.AddTimeGroupColumnAsync(); } catch { }
+                    ViewModel.ErrorMessage = "Database schema updated. Please refresh the page.";
+                }
+                else
+                {
+                    ViewModel.ErrorMessage = $"DB Error: {ex.GetType().Name}: {ex.Message}";
+                }
             }
         }
 

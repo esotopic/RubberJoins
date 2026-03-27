@@ -368,6 +368,20 @@ namespace RubberJoins.Data
             await EnsureTablesExistAsync();
         }
 
+        /// <summary>
+        /// Emergency method to add TimeGroup column if migration failed at startup.
+        /// </summary>
+        public async Task AddTimeGroupColumnAsync()
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='UserSupplements' AND COLUMN_NAME='TimeGroup')
+                    ALTER TABLE UserSupplements ADD TimeGroup NVARCHAR(50) NOT NULL CONSTRAINT DF_US_TimeGroup DEFAULT 'am'";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         private async Task SeedExercisesAsync(SqlConnection connection)
         {
             var exercises = new List<(string id, string name, string category, string targets, string description, string cues, string explanation, string warning, string phases, string defaultRx)>
