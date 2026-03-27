@@ -57,14 +57,21 @@ namespace RubberJoins.Pages
                 int todayStepsDone = todayChecks.Count(c => c.ItemType == "step" && c.Checked);
                 int todayStepsTotal = filteredEntries.Count;
 
-                // Today's supplements
-                var allSupplements = await _repository.GetSupplementsAsync();
-                var suppCheckMap = todayChecks
+                // Today's supplements (per-user, per-timegroup)
+                var userSupplements = await _repository.GetUserSupplementsForDateAsync(userId, todayDate);
+                var suppChecks = todayChecks
                     .Where(c => c.ItemType == "supplement")
                     .ToDictionary(c => c.ItemId, c => c.Checked);
 
-                int todaySuppsDone = allSupplements.Count(s => suppCheckMap.ContainsKey(s.Id) && suppCheckMap[s.Id]);
-                int todaySuppsTotal = allSupplements.Count;
+                int todaySuppsDone = 0;
+                int todaySuppsTotal = userSupplements.Count;
+                foreach (var supp in userSupplements)
+                {
+                    int tgIndex = supp.TimeGroup switch { "am" => 0, "mid" => 1, "pm" => 2, _ => 0 };
+                    string checkKey = $"supplement:{supp.Id}:{tgIndex}";
+                    if (suppChecks.TryGetValue(checkKey, out var isChecked) && isChecked)
+                        todaySuppsDone++;
+                }
 
                 // Get milestones (per-user)
                 var milestones = await _repository.GetUserMilestonesAsync(userId);
@@ -85,7 +92,7 @@ namespace RubberJoins.Pages
             }
             catch (Exception ex)
             {
-                ViewModel.ErrorMessage = $"Debug: {ex.GetType().Name}: {ex.Message}";
+                ViewModel.ErrorMessage = "Unable to load progress data. Please try again in a moment.";
             }
         }
     }
