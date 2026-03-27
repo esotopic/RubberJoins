@@ -170,4 +170,52 @@ app.MapPost("/api/logsession", async (HttpContext context, RubberJoinsRepository
     }
 });
 
+// Diagnostic endpoint to check DB state
+app.MapGet("/api/diag", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    var results = new Dictionary<string, object>();
+    try
+    {
+        var programs = await repository.GetProgramsAsync();
+        results["programs"] = programs.Count;
+        results["programNames"] = programs.Select(p => p.Name).ToList();
+    }
+    catch (Exception ex) { results["programs_error"] = ex.Message; }
+
+    try
+    {
+        string userId = context.User.Identity?.Name ?? "anonymous";
+        results["userId"] = userId;
+        results["authenticated"] = context.User.Identity?.IsAuthenticated ?? false;
+        var enrollment = await repository.GetActiveEnrollmentAsync(userId);
+        results["enrollment"] = enrollment != null ? $"{enrollment.ProgramName} started {enrollment.StartDate}" : "none";
+    }
+    catch (Exception ex) { results["enrollment_error"] = ex.Message; }
+
+    try
+    {
+        string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        string userId = context.User.Identity?.Name ?? "anonymous";
+        var plan = await repository.GetUserDailyPlanAsync(userId, todayDate);
+        results["todayPlanEntries"] = plan.Count;
+    }
+    catch (Exception ex) { results["plan_error"] = ex.Message; }
+
+    try
+    {
+        var exercises = await repository.GetAllExercisesAsync();
+        results["exercises"] = exercises.Count;
+    }
+    catch (Exception ex) { results["exercises_error"] = ex.Message; }
+
+    try
+    {
+        var steps = await repository.GetSessionStepsAsync("gym");
+        results["gymSessionSteps"] = steps.Count;
+    }
+    catch (Exception ex) { results["sessionSteps_error"] = ex.Message; }
+
+    return Results.Json(results);
+});
+
 app.Run();
