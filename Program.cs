@@ -51,7 +51,7 @@ try
 }
 catch (Exception ex)
 {
-    app.Logger.LogError(ex, "Failed to initialize database.");
+    app.Logger.LogError(ex, "Failed to initialize database. App continues - use /api/init to retry.");
 }
 
 app.MapRazorPages();
@@ -164,6 +164,20 @@ app.MapPost("/api/logsession", async (HttpContext context, RubberJoinsRepository
     catch (Exception ex)
     {
         return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
+// Force init endpoint
+app.MapGet("/api/init", async (RubberJoinsRepository repository) =>
+{
+    try
+    {
+        await repository.InitializeAsync();
+        return Results.Json(new { success = true, message = "Init completed" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message, stack = ex.StackTrace, inner = ex.InnerException?.Message });
     }
 });
 
