@@ -234,10 +234,18 @@
         </div>
     }
 
-    @if (Model.ViewModel.Supplements.Any())
-    {
-        <section class="supplements-card">
-            <h2 class="card-title">Supplements</h2>
+    <section class="supplements-card">
+        <div class="session-group-header" style="padding:0 0 8px 0;">
+            <span class="dot" style="background:#ffcc00;"></span>
+            <span>Vitamins</span>
+            <span class="group-progress" id="supp-group-progress">@suppsDone/@suppsTotal</span>
+            @if (!isFuture)
+            {
+                <button class="add-exercise-btn" id="add-supplement-btn" title="Add supplement">+</button>
+            }
+        </div>
+        @if (Model.ViewModel.Supplements.Any())
+        {
             <div class="supplements-list">
                 @foreach (var group in Model.ViewModel.Supplements.GroupBy(s => s.Supplement.TimeGroup))
                 {
@@ -261,8 +269,21 @@
                     </div>
                 }
             </div>
-        </section>
-    }
+        }
+        else
+        {
+            <div class="empty-section-hint">
+                @if (!isFuture)
+                {
+                    <span>Tap + to add supplements</span>
+                }
+                else
+                {
+                    <span>No supplements scheduled</span>
+                }
+            </div>
+        }
+    </section>
 
     <!-- Exercise Picker Modal -->
     <div id="exercise-picker-overlay" class="picker-overlay" style="display:none;">
@@ -272,6 +293,19 @@
                 <button class="picker-close" id="picker-close">&times;</button>
             </div>
             <div class="picker-list" id="picker-list">
+                <div class="picker-loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplement Picker Modal -->
+    <div id="supp-picker-overlay" class="picker-overlay" style="display:none;">
+        <div class="picker-sheet">
+            <div class="picker-header">
+                <span class="picker-title">Add Supplement</span>
+                <button class="picker-close" id="supp-picker-close">&times;</button>
+            </div>
+            <div class="picker-list" id="supp-picker-list">
                 <div class="picker-loading">Loading...</div>
             </div>
         </div>
@@ -509,14 +543,115 @@ async function addExercise(exercise) {
     }
 }
 
-// Wire up all + buttons
+// Wire up exercise + buttons (exclude the supplement button)
 if (!IS_FUTURE) {
-    document.querySelectorAll('.add-exercise-btn, .add-exercise-btn-large').forEach(btn => {
+    document.querySelectorAll('.add-exercise-btn[data-category], .add-exercise-btn-large[data-category]').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             openPicker(btn.dataset.category);
         });
     });
+}
+
+// ── Supplement Picker ──
+const suppPickerOverlay = document.getElementById('supp-picker-overlay');
+const suppPickerList = document.getElementById('supp-picker-list');
+const suppPickerClose = document.getElementById('supp-picker-close');
+
+function openSuppPicker() {
+    suppPickerList.innerHTML = '<div class="picker-loading">Loading...</div>';
+    suppPickerOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    fetch('/api/supplements/available')
+        .then(r => r.json())
+        .then(supplements => {
+            if (supplements.length === 0) {
+                suppPickerList.innerHTML = '<div class="picker-loading">All supplements already added</div>';
+                return;
+            }
+            suppPickerList.innerHTML = '';
+
+            // Group by timeGroup
+            const groups = {};
+            supplements.forEach(s => {
+                const g = s.timeGroup || 'other';
+                if (!groups[g]) groups[g] = [];
+                groups[g].push(s);
+            });
+
+            const groupLabels = { am: 'Morning', mid: 'Midday', pm: 'Evening', other: 'Other' };
+            const groupOrder = ['am', 'mid', 'pm', 'other'];
+
+            groupOrder.forEach(g => {
+                if (!groups[g]) return;
+                const header = document.createElement('div');
+                header.className = 'picker-group-header';
+                header.textContent = groupLabels[g] || g;
+                suppPickerList.appendChild(header);
+
+                groups[g].forEach(s => {
+                    const item = document.createElement('div');
+                    item.className = 'picker-item';
+                    item.innerHTML = `
+                        <div class="picker-item-info">
+                            <span class="picker-item-name">${s.name}</span>
+                            <span class="picker-item-targets">${s.dose}</span>
+                        </div>
+                        <span class="picker-item-rx">${s.time}</span>
+                    `;
+                    item.addEventListener('click', () => addSupplement(s));
+                    suppPickerList.appendChild(item);
+                });
+            });
+        })
+        .catch(err => {
+            suppPickerList.innerHTML = '<div class="picker-loading">Error loading supplements</div>';
+            console.error(err);
+        });
+}
+
+function closeSuppPicker() {
+    suppPickerOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+suppPickerClose.addEventListener('click', closeSuppPicker);
+suppPickerOverlay.addEventListener('click', (e) => {
+    if (e.target === suppPickerOverlay) closeSuppPicker();
+});
+
+async function addSupplement(supplement) {
+    closeSuppPicker();
+    try {
+        const response = await fetch('/api/supplements/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                supplementId: supplement.id,
+                date: PAGE_DATE
+            })
+        });
+        const result = await response.json();
+        if (result.success) {
+            window.location.reload();
+        } else {
+            console.error('Failed to add supplement:', result.error);
+        }
+    } catch (error) {
+        console.error('Network error adding supplement:', error);
+    }
+}
+
+// Wire up supplement + button
+if (!IS_FUTURE) {
+    const suppBtn = document.getElementById('add-supplement-btn');
+    if (suppBtn) {
+        suppBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openSuppPicker();
+        });
+    }
 }
 
 // Swipe gesture support for day navigation

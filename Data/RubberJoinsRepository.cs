@@ -284,6 +284,24 @@ namespace RubberJoins.Data
                     await command.ExecuteNonQueryAsync();
                 }
 
+                // Create UserSupplements table (per-user active supplement tracking)
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserSupplements')
+                        BEGIN
+                            CREATE TABLE UserSupplements (
+                                Id INT IDENTITY(1,1) PRIMARY KEY,
+                                UserId NVARCHAR(100) NOT NULL,
+                                SupplementId NVARCHAR(50) NOT NULL,
+                                AddedDate NVARCHAR(10) NOT NULL,
+                                FOREIGN KEY (SupplementId) REFERENCES Supplements(Id),
+                                UNIQUE (UserId, SupplementId)
+                            )
+                        END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
                 // Seed Exercises
                 await SeedExercisesAsync(connection);
 
@@ -380,7 +398,20 @@ namespace RubberJoins.Data
                 ("supp-creatine", "Creatine Monohydrate", "3-5g", "AM", "am"),
                 ("supp-curcumin", "Curcumin (w/ piperine)", "500-1500mg", "With lunch", "mid"),
                 ("supp-omega3b", "Omega-3 (2nd dose)", "~1500mg EPA+DHA", "PM with dinner", "pm"),
-                ("supp-mag", "Magnesium Glycinate", "300-400mg", "Before bed", "pm")
+                ("supp-mag", "Magnesium Glycinate", "300-400mg", "Before bed", "pm"),
+                // Additional supplement options
+                ("supp-zinc", "Zinc", "15-30mg", "With food", "am"),
+                ("supp-ashwagandha", "Ashwagandha", "300-600mg", "AM or PM", "am"),
+                ("supp-glucosamine", "Glucosamine + Chondroitin", "1500mg + 1200mg", "With food", "am"),
+                ("supp-bcomplex", "B-Complex", "1 capsule", "AM with food", "am"),
+                ("supp-probiotics", "Probiotics", "10-50 billion CFU", "AM empty stomach", "am"),
+                ("supp-coq10", "CoQ10", "100-200mg", "With food", "am"),
+                ("supp-glutamine", "L-Glutamine", "5g", "Post-workout", "mid"),
+                ("supp-electrolytes", "Electrolytes", "1 packet", "During workout", "mid"),
+                ("supp-melatonin", "Melatonin", "0.5-3mg", "30 min before bed", "pm"),
+                ("supp-tart-cherry", "Tart Cherry Extract", "500mg", "Before bed", "pm"),
+                ("supp-iron", "Iron", "18-27mg", "AM empty stomach", "am"),
+                ("supp-vitaminc", "Vitamin C", "500-1000mg", "AM with food", "am")
             };
 
             using (var command = connection.CreateCommand())
@@ -1574,6 +1605,206 @@ namespace RubberJoins.Data
                 });
             }
             return exercises;
+        }
+
+        // ── UserSupplements Methods ──
+
+        /// <summary>
+        /// Ensures the user has UserSupplements rows. If none exist, seeds with the 7 default supplements.
+        /// Returns the user's active supplements for the given date (where AddedDate <= date).
+        /// </summary>
+        public async Task<List<Supplement>> GetUserSupplementsForDateAsync(string userId, string date)
+        {
+            var supplements = new List<Supplement>();
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Check if user has any UserSupplements rows at all
+            int count;
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM UserSupplements WHERE UserId = @userId";
+                cmd.Parameters.AddWithValue("@userId", userId);
+                count = (int)await cmd.ExecuteScalarAsync();
+            }
+
+            // Auto-seed defaults for existing users who don't have UserSupplements yet
+            if (count == 0)
+            {
+                string startDate = date; // default to current date
+                // Try to get enrollment start date
+                var enrollment = await GetActiveEnrollmentAsync(userId);
+                if (enrollment != null) startDate = enrollment.StartDate;
+
+                var defaultIds = new[] {
+                    "supp-collagen", "supp-omega3", "supp-vitamind", "supp-creatine",
+                    "supp-curcumin", "supp-omega3b", "supp-mag"
+                };
+                foreach (var suppId in defaultIds)
+                {
+                    using var seedCmd = connection.CreateCommand();
+                    seedCmd.CommandText = @"
+                        IF EXISTS (SELECT 1 FROM Supplements WHERE Id = @suppId)
+                            INSERT INTO UserSupplements (UserId, SupplementId, AddedDate) VALUES (@userId, @suppId, @addedDate)";
+                    seedCmd.Parameters.AddWithValue("@userId", userId);
+                    seedCmd.Parameters.AddWithValue("@suppId", suppId);
+                    seedCmd.Parameters.AddWithValue("@addedDate", startDate);
+                    await seedCmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // Now fetch user's supplements for the given date
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT s.Id, s.Name, s.Dose, s.Time, s.TimeGroup
+                    FROM UserSupplements us
+                    JOIN Supplements s ON us.SupplementId = s.Id
+                    WHERE us.UserId = @userId AND us.AddedDate <= @date
+                    ORDER BY s.TimeGroup, s.Name";
+                cmd.Parameters.AddWithValue("@userId", userId);
+                cmd.Parameters.AddWithValue("@date", date);
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    supplements.Add(new Supplement
+                    {
+                        Id = reader.GetString(0),
+                        Name = reader.GetString(1),
+                        Dose = reader.IsDBNull(2) ? null : reader.GetString(2),
+                        Time = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        TimeGroup = reader.GetString(4)
+                    });
+                }
+            }
+
+            return supplements;
+        }
+
+        /// <summary>
+        /// Gets supplements available to add (not yet in user's active list).
+        /// </summary>
+        public async Task<List<Supplement>> GetAvailableSupplementsAsync(string userId)
+        {
+            var supplements = new List<Supplement>();
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT s.Id, s.Name, s.Dose, s.Time, s.TimeGroup
+                FROM Supplements s
+                WHERE s.Id NOT IN (SELECT SupplementId FROM UserSupplements WHERE UserId = @userId)
+                ORDER BY s.TimeGroup, s.Name";
+            cmd.Parameters.AddWithValue("@userId", userId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                supplements.Add(new Supplement
+                {
+                    Id = reader.GetString(0),
+                    Name = reader.GetString(1),
+                    Dose = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Time = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    TimeGroup = reader.GetString(4)
+                });
+            }
+            return supplements;
+        }
+
+        /// <summary>
+        /// Adds a supplement to the user's active list with AddedDate so it shows on that date and all future dates.
+        /// </summary>
+        public async Task<bool> AddUserSupplementAsync(string userId, string supplementId, string addedDate)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Check if already added
+            using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.CommandText = "SELECT COUNT(*) FROM UserSupplements WHERE UserId = @userId AND SupplementId = @suppId";
+                checkCmd.Parameters.AddWithValue("@userId", userId);
+                checkCmd.Parameters.AddWithValue("@suppId", supplementId);
+                if ((int)await checkCmd.ExecuteScalarAsync() > 0) return false;
+            }
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "INSERT INTO UserSupplements (UserId, SupplementId, AddedDate) VALUES (@userId, @suppId, @addedDate)";
+            cmd.Parameters.AddWithValue("@userId", userId);
+            cmd.Parameters.AddWithValue("@suppId", supplementId);
+            cmd.Parameters.AddWithValue("@addedDate", addedDate);
+            await cmd.ExecuteNonQueryAsync();
+            return true;
+        }
+
+        /// <summary>
+        /// Adds a manual exercise to the specified date AND all future dates in the plan.
+        /// </summary>
+        public async Task<int> AddManualPlanEntryWithFutureAsync(string userId, string date, string exerciseId, string category)
+        {
+            // First add to the specified date (existing logic)
+            int newId = await AddManualPlanEntryAsync(userId, date, exerciseId, category);
+            if (newId == -1) return -1;
+
+            // Now also add to all future dates in the plan
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var enrollment = await GetActiveEnrollmentAsync(userId);
+            if (enrollment == null) return newId;
+
+            // Get the exercise's DefaultRx
+            string? defaultRx = null;
+            using (var rxCmd = connection.CreateCommand())
+            {
+                rxCmd.CommandText = "SELECT DefaultRx FROM Exercises WHERE Id = @id";
+                rxCmd.Parameters.AddWithValue("@id", exerciseId);
+                var result = await rxCmd.ExecuteScalarAsync();
+                if (result != null && result != DBNull.Value) defaultRx = result.ToString();
+            }
+
+            // Get all distinct future dates in the plan
+            var futureDates = new List<string>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT DISTINCT Date FROM UserDailyPlan
+                    WHERE UserId = @userId AND ProgramId = @programId AND Date > @date
+                    ORDER BY Date";
+                cmd.Parameters.AddWithValue("@userId", userId);
+                cmd.Parameters.AddWithValue("@programId", enrollment.ProgramId);
+                cmd.Parameters.AddWithValue("@date", date);
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    futureDates.Add(reader.GetString(0));
+                }
+            }
+
+            // Insert into each future date (skip if already exists)
+            foreach (var futureDate in futureDates)
+            {
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = @"
+                    IF NOT EXISTS (SELECT 1 FROM UserDailyPlan WHERE UserId = @userId AND Date = @date AND ExerciseId = @exerciseId)
+                    BEGIN
+                        INSERT INTO UserDailyPlan (UserId, ProgramId, Date, DayType, ExerciseId, Category, SortOrder, Rx, AiAdjusted, IsManual)
+                        SELECT @userId, @programId, @date,
+                               ISNULL((SELECT TOP 1 DayType FROM UserDailyPlan WHERE UserId = @userId AND Date = @date), 'gym'),
+                               @exerciseId, @category,
+                               ISNULL((SELECT MAX(SortOrder) FROM UserDailyPlan WHERE UserId = @userId AND Date = @date), 0) + 1,
+                               @rx, 0, 1
+                    END";
+                cmd.Parameters.AddWithValue("@userId", userId);
+                cmd.Parameters.AddWithValue("@programId", enrollment.ProgramId);
+                cmd.Parameters.AddWithValue("@date", futureDate);
+                cmd.Parameters.AddWithValue("@exerciseId", exerciseId);
+                cmd.Parameters.AddWithValue("@category", category);
+                cmd.Parameters.AddWithValue("@rx", (object?)defaultRx ?? DBNull.Value);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            return newId;
         }
     }
 }

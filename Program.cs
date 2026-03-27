@@ -116,7 +116,7 @@ app.MapPost("/api/plan/add", async (HttpContext context, RubberJoinsRepository r
         if (string.IsNullOrEmpty(date) || string.IsNullOrEmpty(exerciseId) || string.IsNullOrEmpty(category))
             return Results.Json(new { success = false, error = "Missing required fields" }, statusCode: 400);
 
-        int newId = await repository.AddManualPlanEntryAsync(userId, date, exerciseId, category);
+        int newId = await repository.AddManualPlanEntryWithFutureAsync(userId, date, exerciseId, category);
         if (newId == -1)
             return Results.Json(new { success = false, error = "Exercise already in plan or no enrollment" }, statusCode: 409);
 
@@ -147,6 +147,60 @@ app.MapGet("/api/exercises", async (HttpContext context, RubberJoinsRepository r
             targets = e.Targets,
             defaultRx = e.DefaultRx ?? ""
         }));
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
+// ── Get available supplements to add (not yet in user's list) ──
+app.MapGet("/api/supplements/available", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    try
+    {
+        string userId = context.User.Identity?.Name ?? "default";
+        var supplements = await repository.GetAvailableSupplementsAsync(userId);
+        return Results.Json(supplements.Select(s => new {
+            id = s.Id,
+            name = s.Name,
+            dose = s.Dose ?? "",
+            time = s.Time ?? "",
+            timeGroup = s.TimeGroup
+        }));
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
+// ── Add supplement to user's active list ──
+app.MapPost("/api/supplements/add", async (HttpContext context, RubberJoinsRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    try
+    {
+        string userId = context.User.Identity?.Name ?? "default";
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(context.Request.Body);
+        var root = doc.RootElement;
+
+        string supplementId = root.GetProperty("supplementId").GetString() ?? "";
+        string date = root.GetProperty("date").GetString() ?? "";
+
+        if (string.IsNullOrEmpty(supplementId) || string.IsNullOrEmpty(date))
+            return Results.Json(new { success = false, error = "Missing required fields" }, statusCode: 400);
+
+        bool added = await repository.AddUserSupplementAsync(userId, supplementId, date);
+        if (!added)
+            return Results.Json(new { success = false, error = "Supplement already in your list" }, statusCode: 409);
+
+        return Results.Json(new { success = true });
     }
     catch (Exception ex)
     {

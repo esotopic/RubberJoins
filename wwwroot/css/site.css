@@ -1792,6 +1792,22 @@ input[type='date']::-webkit-calendar-picker-indicator {
   font-style: italic;
 }
 
+.picker-group-header {
+  padding: 10px 20px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--tx3);
+  border-top: 1px solid var(--brd);
+  margin-top: 4px;
+}
+
+.picker-group-header:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
 /* Picker overlay (bottom sheet) */
 .picker-overlay {
   position: fixed;

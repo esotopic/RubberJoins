@@ -100,10 +100,10 @@ namespace RubberJoins.Pages
                     }
                 }
 
-                // Get supplements
-                var allSupplements = await _repository.GetSupplementsAsync();
+                // Get user's active supplements for this date
+                var userSupplements = await _repository.GetUserSupplementsForDateAsync(userId, selectedDateStr);
                 var supplementChecks = new List<SupplementCheck>();
-                foreach (var supp in allSupplements)
+                foreach (var supp in userSupplements)
                 {
                     string checkKey = $"supplement:{supp.Id}:0";
                     bool isChecked = checkMap.TryGetValue(checkKey, out var val) && val;
