@@ -125,7 +125,7 @@ public class ProgressViewModel
 
 // ── Program / Enrollment / Daily Plan models ──
 
-public class Program
+public class TrainingProgram
 {
     public int Id { get; set; }
     public string Name { get; set; } = "";

@@ -11,7 +11,7 @@ namespace RubberJoins.Pages
     {
         private readonly RubberJoinsRepository _repository;
 
-        public List<Program> Programs { get; set; } = new();
+        public List<TrainingProgram> Programs { get; set; } = new();
         public UserEnrollment? ActiveEnrollment { get; set; }
         public string? ErrorMessage { get; set; }
 

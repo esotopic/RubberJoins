@@ -1250,17 +1250,17 @@ namespace RubberJoins.Data
 
         // ── Program & Enrollment Methods ──
 
-        public async Task<List<Program>> GetProgramsAsync()
+        public async Task<List<TrainingProgram>> GetProgramsAsync()
         {
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
             using var command = connection.CreateCommand();
             command.CommandText = "SELECT Id, Name, DurationDays, Description FROM Programs ORDER BY Name";
-            var programs = new List<Program>();
+            var programs = new List<TrainingProgram>();
             using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                programs.Add(new Program
+                programs.Add(new TrainingProgram
                 {
                     Id = reader.GetInt32(0),
                     Name = reader.GetString(1),
@@ -1336,7 +1336,7 @@ namespace RubberJoins.Data
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    template.Add(new ProgramTemplate
+                    template.Add(new TrainingProgramTemplate
                     {
                         Id = reader.GetInt32(0),
                         ProgramId = reader.GetInt32(1),
